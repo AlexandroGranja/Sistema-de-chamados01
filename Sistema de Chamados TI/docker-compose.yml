@@ -1,0 +1,25 @@
+# PostgreSQL opcional para desenvolvimento local (Sistema de Chamados Prosper)
+# Uso: na raiz do projeto -> docker compose up -d
+# Depois configure em backend/.env:
+#   DATABASE_URL=postgresql://chamados:chamados@localhost:5432/chamados_ti
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: prosper_chamados_pg
+    environment:
+      POSTGRES_USER: chamados
+      POSTGRES_PASSWORD: chamados
+      POSTGRES_DB: chamados_ti
+    ports:
+      - "5432:5432"
+    volumes:
+      - prosper_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chamados -d chamados_ti"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  prosper_pg_data:
