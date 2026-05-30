@@ -46,6 +46,8 @@ GerenciamentoDeTelefones/          ← monorepo (este repo)
 | [POLITICA_SENHAS.md](./POLITICA_SENHAS.md) | Senha única, sync `usuarios_app` ↔ `users` (Fase B5) |
 | [CHAMADOS_TICKETS_UNIFICACAO.md](./CHAMADOS_TICKETS_UNIFICACAO.md) | Modelo único de chamado, legado vs tickets (Fase C2) |
 | [UI_PAPEL_APPS_C3.md](./UI_PAPEL_APPS_C3.md) | Papéis React vs Streamlit, admin-only (Fase C3) |
+| [C4_OIDC_KEYCLOAK.md](./C4_OIDC_KEYCLOAK.md) | OIDC Keycloak opcional (Fase C4) |
+| [C5_DEPLOY.md](./C5_DEPLOY.md) | Docker stack + nginx + backup (Fase C5) |
 
 ---
 

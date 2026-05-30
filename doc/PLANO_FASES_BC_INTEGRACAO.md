@@ -227,23 +227,28 @@ B1 e B3 são bloqueantes para confiança operacional; B2 melhora UX.
 
 ### C4 — Identidade SSO real (Keycloak / Azure AD)
 
-**Entregas:**
+**Status:** PoC integrado (OIDC opcional; SSO por codigo mantido).
 
-1. PoC Keycloak (já esboçado em docs históricos `_archive/`).
-2. Substituir SSO por código temporário por OIDC nos dois apps.
-3. Logout global.
+**Implementado:**
 
-Referência arquivada: `_archive/Gerenciamento de Telefone/docs/superpowers/plans/2026-04-29-keycloak-sso.md`
+- `app/services/oidc.py` + rotas `/api/auth/oidc/*`
+- `docker-compose.keycloak.yml` (Keycloak dev :8080)
+- Botao SSO no Login React quando `OIDC_ENABLED=true`
+- Logout global via `/api/auth/oidc/logout-url`
+- `doc/C4_OIDC_KEYCLOAK.md` + `scripts/test_c4_oidc.py`
 
 ---
 
 ### C5 — Deploy e observabilidade unificados
 
-**Entregas:**
+**Status:** concluido (stack Docker + nginx + backup).
 
-1. `docker-compose.yml` na raiz: postgres + backend + frontend + streamlit (opcional).
-2. Nginx reverse proxy: `/chamados`, `/telefones`, `/api`.
-3. Backup automatizado Postgres; healthchecks.
+**Implementado:**
+
+- `docker-compose.stack.yml` — postgres + api + web + streamlit + nginx (:8088)
+- `deploy/Dockerfile.*`, `deploy/nginx/nginx.conf`
+- `scripts/backup_postgres.py`, `scripts/validate_compose_stack.py`
+- `doc/C5_DEPLOY.md`
 
 ---
 

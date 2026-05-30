@@ -26,6 +26,9 @@ env/
 # Logs
 *.log
 
+# Backups PostgreSQL locais
+backups/
+
 # OS
 .DS_Store
 Thumbs.db
