@@ -43,6 +43,7 @@ GerenciamentoDeTelefones/          ← monorepo (este repo)
 | [SETUP_BANCO_LOCAL.md](./SETUP_BANCO_LOCAL.md) | PostgreSQL no PC (projeto pessoal), dump, Docker, verificação |
 | [POPULAR_BANCO.md](./POPULAR_BANCO.md) | Importar linhas (planilhas, SQLite, dump) |
 | [CHECKLIST_QA_INTEGRACAO.md](./CHECKLIST_QA_INTEGRACAO.md) | Checklist QA por fluxo operacional (Fase B4) |
+| [POLITICA_SENHAS.md](./POLITICA_SENHAS.md) | Senha única, sync `usuarios_app` ↔ `users` (Fase B5) |
 
 ---
 
@@ -106,6 +107,7 @@ flowchart TD
 | Smoke serviços + banco | `python -m scripts.smoke_integracao` |
 | E2E auditoria API (B3) | `python -m scripts.test_auditoria_b3_e2e <senha>` |
 | E2E navegação (B2) | `python -m scripts.test_navegacao_b2_e2e <senha>` |
+| Sync usuários (B5) | `python -m scripts.sync_usuarios_chamados` |
 
 ---
 
@@ -126,4 +128,4 @@ Cópias antigas ficam em [`_archive/`](../_archive/README.md). Não usar para de
 
 ---
 
-*Última revisão: Fase B4 — matriz operacional e QA — maio/2026*
+*Última revisão: Fase B5 — sync usuários e política de senhas — maio/2026*

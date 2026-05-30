@@ -42,6 +42,7 @@ try:
     from src.db.repository import (
         load_linhas, has_data, get_db_path, save_linhas,
         init_db, verificar_login, criar_usuario, listar_usuarios, excluir_usuario, atualizar_senha_usuario, tem_usuarios,
+        listar_usuarios_com_status_chamados, contar_usuarios_sem_chamados,
         obter_usuario_por_username, obter_usuario_app_id, criar_sso_code, criar_sessao, validar_sessao, encerrar_sessao,
         registrar_auditoria, listar_auditoria,
         resolver_referencia_chamado, preparar_referencia_chamado,
@@ -52,6 +53,7 @@ try:
 except ImportError:
     HAS_DB = False
     init_db = verificar_login = criar_usuario = listar_usuarios = excluir_usuario = atualizar_senha_usuario = tem_usuarios = None
+    listar_usuarios_com_status_chamados = contar_usuarios_sem_chamados = None
     obter_usuario_por_username = criar_sessao = validar_sessao = encerrar_sessao = None
     registrar_auditoria = listar_auditoria = None
     resolver_referencia_chamado = preparar_referencia_chamado = None
@@ -1084,6 +1086,15 @@ def _restaurar_sessao_cookie() -> bool:
     return False
 
 
+def _sync_usuarios_chamados(*, dry_run: bool = False) -> tuple[bool, str]:
+    try:
+        from scripts.sync_usuarios_chamados import executar_sync
+
+        return executar_sync(dry_run=dry_run)
+    except Exception as exc:
+        return False, str(exc)
+
+
 def _render_login_or_first_user() -> bool:
     """
     Renderiza login ou formulário do primeiro usuário.
@@ -1113,6 +1124,8 @@ def _render_login_or_first_user() -> bool:
             if st.form_submit_button("Criar"):
                 if u.strip() and len(p) >= 4:
                     if criar_usuario(u.strip(), p, is_admin=True):
+                        if is_postgres_configured():
+                            _sync_usuarios_chamados()
                         user = {"username": u.strip().lower(), "is_admin": True}
                         st.session_state.authenticated = True
                         st.session_state.user = user
@@ -1544,7 +1557,15 @@ def main() -> None:
                 if st.button("Criar usuário", key="btn_new_user"):
                     if nu.strip() and len(np) >= 4:
                         if criar_usuario(nu.strip(), np, is_admin=is_adm):
-                            st.success("Usuário criado!")
+                            if is_postgres_configured():
+                                sync_ok, sync_msg = _sync_usuarios_chamados()
+                                if sync_ok:
+                                    st.success("Usuário criado e sincronizado com Chamados.")
+                                else:
+                                    st.success("Usuário criado no Gerenciamento.")
+                                    st.warning(f"Sincronização com Chamados falhou: {sync_msg}")
+                            else:
+                                st.success("Usuário criado!")
                             st.rerun()
                         else:
                             st.error("Usuário já existe.")
@@ -1653,6 +1674,53 @@ def main() -> None:
                                     st.session_state.user = None
                                     st.session_state.auth_token = None
                                 st.rerun()
+            st.divider()
+            if is_postgres_configured() and listar_usuarios_com_status_chamados:
+                with st.expander("Sincronização com Chamados (users)", expanded=False):
+                    st.caption(
+                        "Espelha `usuarios_app` na tabela `users` do React. "
+                        "Necessário para SSO e FKs de chamados. "
+                        "Senhas: ver doc/POLITICA_SENHAS.md."
+                    )
+                    status_rows = listar_usuarios_com_status_chamados()
+                    pendentes = [u for u in status_rows if u.get("ativo", True) and not u.get("tem_chamados")]
+                    if pendentes:
+                        st.warning(
+                            f"{len(pendentes)} usuário(s) no Gerenciamento **sem** espelho em Chamados: "
+                            + ", ".join(f"`{u['username']}`" for u in pendentes[:8])
+                            + ("…" if len(pendentes) > 8 else "")
+                        )
+                    elif status_rows:
+                        st.success("Todos os usuários ativos estão espelhados em Chamados.")
+                    if status_rows:
+                        st.dataframe(
+                            [
+                                {
+                                    "Usuário": u["username"],
+                                    "Admin": "Sim" if u.get("is_admin") else "Não",
+                                    "Chamados (users)": "OK" if u.get("tem_chamados") else "Pendente",
+                                }
+                                for u in status_rows
+                            ],
+                            hide_index=True,
+                            use_container_width=True,
+                        )
+                    c_sync1, c_sync2 = st.columns(2)
+                    with c_sync1:
+                        if st.button("Sincronizar agora", key="btn_sync_chamados_users"):
+                            sync_ok, sync_msg = _sync_usuarios_chamados()
+                            if sync_ok:
+                                st.success(sync_msg)
+                            else:
+                                st.error(sync_msg)
+                            st.rerun()
+                    with c_sync2:
+                        if st.button("Simular sync (dry-run)", key="btn_sync_chamados_dry"):
+                            sync_ok, sync_msg = _sync_usuarios_chamados(dry_run=True)
+                            if sync_ok:
+                                st.info(sync_msg)
+                            else:
+                                st.error(sync_msg)
             st.divider()
         st.markdown("**Configurações gerais**")
         if HAS_DB:

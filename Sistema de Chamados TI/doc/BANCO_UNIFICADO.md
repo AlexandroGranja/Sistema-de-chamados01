@@ -50,11 +50,16 @@ No mesmo banco existe também a tabela legada **`chamados`** (modelo do Streamli
 Para alinhar a tabela `users` ao cadastro `usuarios_app` (remover órfãos, fundir duplicatas de `snipe_user_id`, reatribuir FKs):
 
 ```powershell
-# 1) Ative o venv (use o que existir no seu PC):
-#    Raiz:  & .\.venv\Scripts\Activate.ps1
-#    Ou, se o ativador criou só em backend:  cd backend ; .\venv\Scripts\Activate.ps1
+# Na raiz do monorepo (recomendado — usa venv do backend):
+python -m scripts.sync_usuarios_chamados
+python -m scripts.sync_usuarios_chamados --dry-run
 
-cd backend
+# Ou direto no backend:
+cd "Sistema de Chamados TI/backend"
 python scripts\sync_users_from_usuarios_app.py --dry-run
 python scripts\sync_users_from_usuarios_app.py --yes
 ```
+
+**Automático (Fase B5):** após criar usuário no admin Streamlit ou via `python -m scripts.criar_admin`, o sync roda quando `DATABASE_URL` aponta para PostgreSQL.
+
+**Política de senhas:** [doc/POLITICA_SENHAS.md](../../doc/POLITICA_SENHAS.md) — senha operacional = `usuarios_app`; `users.password_hash` é placeholder bcrypt para contas espelhadas.

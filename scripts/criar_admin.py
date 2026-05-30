@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from src.db.repository import init_db, criar_usuario, tem_usuarios
+from src.core.config import is_postgres_configured
 
 def main():
     init_db()
@@ -41,6 +42,19 @@ def main():
         sys.exit(1)
     if criar_usuario(username, password, is_admin=True):
         print(f"Usuario '{username}' criado com sucesso!")
+        if is_postgres_configured():
+            try:
+                from scripts.sync_usuarios_chamados import executar_sync
+
+                ok, msg = executar_sync()
+                if ok:
+                    print(f"Sync Chamados: {msg}")
+                else:
+                    print(f"Aviso — sync Chamados falhou: {msg}")
+                    print("Rode depois: python -m scripts.sync_usuarios_chamados")
+            except Exception as exc:
+                print(f"Aviso — sync Chamados: {exc}")
+                print("Rode depois: python -m scripts.sync_usuarios_chamados")
     else:
         print("Erro ao criar usuario.")
         sys.exit(1)

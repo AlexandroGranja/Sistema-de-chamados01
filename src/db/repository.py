@@ -170,6 +170,18 @@ def verificar_login(username: str, password: str, db_path: Optional[Path] = None
         conn.close()
 
 
+def _users_table_exists(cur) -> bool:
+    cur.execute(
+        """
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'users'
+        LIMIT 1
+        """
+    )
+    return cur.fetchone() is not None
+
+
 def listar_usuarios(db_path: Optional[Path] = None) -> list[dict]:
     """Lista todos os usuários (sem senha)."""
     conn = get_connection(db_path)
@@ -190,6 +202,56 @@ def listar_usuarios(db_path: Optional[Path] = None) -> list[dict]:
         ]
     finally:
         conn.close()
+
+
+def listar_usuarios_com_status_chamados(db_path: Optional[Path] = None) -> list[dict]:
+    """
+    Lista usuarios_app com indicador se existe linha espelho em `users` (Chamados).
+    Apenas PostgreSQL unificado; retorna [] se tabela `users` não existir.
+    """
+    if not _is_postgres():
+        return []
+    conn = get_connection(db_path)
+    try:
+        with conn.cursor() as cur:
+            if not _users_table_exists(cur):
+                return []
+            cur.execute(
+                """
+                SELECT
+                    ua.id,
+                    ua.username,
+                    ua.is_admin,
+                    ua.ativo,
+                    u.id AS chamados_user_id
+                FROM usuarios_app ua
+                LEFT JOIN users u ON u.snipe_user_id = ua.id
+                ORDER BY ua.username
+                """
+            )
+            rows = cur.fetchall()
+        return [
+            {
+                "id": int(r[0]),
+                "username": str(r[1]),
+                "is_admin": bool(r[2]),
+                "ativo": bool(r[3]) if r[3] is not None else True,
+                "tem_chamados": r[4] is not None,
+                "chamados_user_id": int(r[4]) if r[4] is not None else None,
+            }
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+def contar_usuarios_sem_chamados(db_path: Optional[Path] = None) -> int:
+    """Quantos usuarios_app ativos não têm linha em `users`."""
+    return sum(
+        1
+        for u in listar_usuarios_com_status_chamados(db_path)
+        if u.get("ativo", True) and not u.get("tem_chamados")
+    )
 
 
 def excluir_usuario(username: str, db_path: Optional[Path] = None) -> bool:
