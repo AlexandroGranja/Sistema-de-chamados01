@@ -197,10 +197,20 @@ B1 e B3 são bloqueantes para confiança operacional; B2 melhora UX.
 
 ### C3 — Interface única (decisão de produto)
 
-**Opção A — React principal + Streamlit admin-only**
+**Status:** concluído — **Opção A** (React operacional + Streamlit admin-only).
 
-- Operadores usam só Chamados + telas de linha embutidas (já existem).
-- Streamlit restrito a admin (config, importações, histórico bruto).
+**Entregas:**
+
+1. Operadores usam Chamados; Streamlit restrito a admin + deep link com contexto de ticket (B2).
+2. Flag `STREAMLIT_ADMIN_ONLY=true` (padrão).
+3. Documentação de papéis e teste unitário.
+
+**Implementado:**
+
+- `src/core/streamlit_access.py` — regras `admin_full` / `operador_chamado` / `blocked_*`
+- `app.py` — bloqueio painel/config para não-admin; botões Adicionar/Config só admin
+- `doc/UI_PAPEL_APPS_C3.md`
+- `python -m scripts.test_c3_streamlit_access`
 
 **Opção B — React absorve Gerenciamento**
 

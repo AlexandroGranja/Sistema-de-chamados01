@@ -64,6 +64,7 @@ except ImportError:
 from src.core.config import (
     RULES_FILE, DOC_DIR, is_postgres_configured, get_chamados_app_url,
 )
+from src.core.streamlit_access import resolve_streamlit_access
 ABAS_ALIMENTO = ["Nova Prosper"]
 ABAS_MEDICAMENTO = ["Prosper Norte", "Prosper Sul"]
 ABAS_FOCO = ["Prosper Norte", "Prosper Sul", "Nova Prosper", "Promotores", "Internos", "Troca de Aparelho", "Devolução Manutenção", "Roubo-Perda"]
@@ -1179,6 +1180,36 @@ def _render_login_or_first_user() -> bool:
     return False
 
 
+def _current_user_is_admin() -> bool:
+    return bool((st.session_state.get("user") or {}).get("is_admin"))
+
+
+def _streamlit_access_mode(current_page: str, chamado_context: dict | None = None) -> str:
+    ctx = chamado_context or st.session_state.get("chamado_context") or {}
+    return resolve_streamlit_access(
+        is_admin=_current_user_is_admin(),
+        page=str(current_page or "painel"),
+        chamado_id=str(ctx.get("chamado_id") or ""),
+        linha=str(ctx.get("linha") or ""),
+        return_url=str(ctx.get("return_url") or ""),
+    )
+
+
+def _render_operador_sem_contexto(chamados_app_url: str) -> None:
+    st.markdown("### Gerenciamento de Telefones")
+    st.info(
+        "O painel completo de linhas e restrito a **administradores** (Fase C3). "
+        "Operadores devem trabalhar no **Sistema de Chamados** (React)."
+    )
+    url = (chamados_app_url or "").strip() or "http://localhost:3000"
+    st.link_button("Abrir Sistema de Chamados", url=url.rstrip("/"), use_container_width=False)
+    st.caption(
+        "Para editar uma linha a partir de um ticket, use o botao no Chamados que abre este app "
+        "com contexto de chamado (integracao B2)."
+    )
+    st.caption("Documentacao: doc/UI_PAPEL_APPS_C3.md")
+
+
 def _audit(
     acao: str,
     entidade: str,
@@ -2065,7 +2096,7 @@ def main() -> None:
             if st.button("⬅ Painel", key="btn_go_panel"):
                 st.query_params["pagina"] = "painel"
                 st.rerun()
-        else:
+        elif _current_user_is_admin():
             with st.popover("➕ Adicionar"):
                 if HAS_DB:
                     st.caption("Passo 1: escolha Segmento e Equipe. Passo 2: complete os dados na tabela.")
@@ -2217,11 +2248,33 @@ def main() -> None:
             st.rerun()
 
     if current_page == "config":
+        if _streamlit_access_mode("config") == "blocked_config":
+            st.markdown("### Configuracao")
+            st.warning("Area restrita a administradores. Use o Sistema de Chamados para operacao diaria.")
+            if chamados_app_url:
+                st.link_button(
+                    "Abrir Sistema de Chamados",
+                    url=chamados_app_url.rstrip("/"),
+                    use_container_width=False,
+                )
+            if st.button("Voltar ao painel", key="btn_blocked_config_panel"):
+                st.query_params["pagina"] = "painel"
+                st.rerun()
+            return
         st.markdown("### ⚙ Configurações")
         _render_config_content()
         return
 
     active_chamado_context = st.session_state.get("chamado_context", {}) or {}
+    panel_access = _streamlit_access_mode("painel", active_chamado_context)
+    if panel_access == "blocked_panel":
+        _render_operador_sem_contexto(chamados_app_url)
+        return
+    if panel_access == "operador_chamado":
+        st.caption(
+            "Modo operador: edicao vinculada ao chamado. Painel completo disponivel apenas para administradores."
+        )
+
     if any(bool(v) for k, v in active_chamado_context.items() if k not in {"chamado_source", "chamado_label", "chamado_numero", "chamado_aviso", "chamado_legado"}):
         contexto_partes: list[str] = []
         chamado_id_ctx = str(active_chamado_context.get("chamado_id") or "").strip()

@@ -63,22 +63,46 @@ def _login() -> str:
 
 
 def _pick_vago_line(cur) -> tuple[int, str]:
+    def _query() -> tuple[int, str] | None:
+        cur.execute(
+            """
+            SELECT id, COALESCE(numero_linha, linha) AS nl
+            FROM linhas
+            WHERE modo = 'ativas'
+              AND upper(trim(coalesce(nome, ''))) = 'VAGO'
+              AND COALESCE(numero_linha, linha) IS NOT NULL
+              AND trim(COALESCE(numero_linha, linha)) <> ''
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        return int(row[0]), str(row[1]).strip()
+
+    found = _query()
+    if found:
+        return found
+
     cur.execute(
         """
-        SELECT id, COALESCE(numero_linha, linha) AS nl
-        FROM linhas
-        WHERE modo = 'ativas'
-          AND upper(trim(coalesce(nome, ''))) = 'VAGO'
-          AND COALESCE(numero_linha, linha) IS NOT NULL
-          AND trim(COALESCE(numero_linha, linha)) <> ''
-        ORDER BY id DESC
-        LIMIT 1
+        UPDATE linhas SET nome = 'VAGO', codigo = 'VAGO'
+        WHERE id = (
+            SELECT id FROM linhas
+            WHERE modo = 'ativas' AND nome ILIKE 'Colaborador E2E%'
+            ORDER BY id DESC LIMIT 1
+        )
+        RETURNING id
         """
     )
-    row = cur.fetchone()
-    if not row:
-        raise SystemExit("Nenhuma linha VAGO encontrada para teste de onboarding.")
-    return int(row[0]), str(row[1]).strip()
+    if cur.fetchone():
+        cur.connection.commit()
+
+    found = _query()
+    if found:
+        return found
+    raise SystemExit("Nenhuma linha VAGO encontrada para teste de onboarding.")
 
 
 def _create_ticket(cur, user_app_id: int) -> int:

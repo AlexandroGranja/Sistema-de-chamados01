@@ -45,6 +45,7 @@ GerenciamentoDeTelefones/          ← monorepo (este repo)
 | [CHECKLIST_QA_INTEGRACAO.md](./CHECKLIST_QA_INTEGRACAO.md) | Checklist QA por fluxo operacional (Fase B4) |
 | [POLITICA_SENHAS.md](./POLITICA_SENHAS.md) | Senha única, sync `usuarios_app` ↔ `users` (Fase B5) |
 | [CHAMADOS_TICKETS_UNIFICACAO.md](./CHAMADOS_TICKETS_UNIFICACAO.md) | Modelo único de chamado, legado vs tickets (Fase C2) |
+| [UI_PAPEL_APPS_C3.md](./UI_PAPEL_APPS_C3.md) | Papéis React vs Streamlit, admin-only (Fase C3) |
 
 ---
 
@@ -71,9 +72,10 @@ GerenciamentoDeTelefones/          ← monorepo (este repo)
 | Roubo ou perda de linha | **Chamados** | Telefonia → Roubo/Perda |
 | Transferir linha de equipe/setor | **Chamados** | Telefonia → Transferência |
 | Desligamento (liberar linha) | **Chamados** | Telefonia → Desligamento |
-| Consultar muitas linhas, filtros, exportar visão | **Gerenciamento** | Painel principal (:8501) |
-| Edição manual avulsa (sem fluxo de ticket) | **Gerenciamento** | Editar linha no grid |
-| Histórico de auditoria, config admin, usuários | **Gerenciamento** | Configuração / Admin |
+| Consultar muitas linhas, filtros, exportar visão | **Gerenciamento** (admin) | Painel principal (:8501) |
+| Edição manual avulsa (sem fluxo de ticket) | **Gerenciamento** (admin) | Editar linha no grid |
+| Histórico de auditoria, config admin, usuários | **Gerenciamento** (admin) | Configuração / Admin |
+| Operador sem ticket (navegação livre) | **Chamados** | Streamlit bloqueia painel (C3) |
 | Ver ticket aberto enquanto edita linha | **Gerenciamento** ← link do Chamados | Banner “Contexto de chamado” + **Voltar para o chamado** |
 | Voltar ao ticket a partir do Gerenciamento | **Chamados** | Botão no banner ou **📌 Chamados** (SSO) |
 
