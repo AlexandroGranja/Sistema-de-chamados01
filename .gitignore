@@ -35,3 +35,12 @@ Thumbs.db
 
 # Docker
 *.env
+
+# Planilhas e dados operacionais (não versionar em repo público)
+data/planilhas/
+data/db/
+*.xlsx
+*.xls
+
+# Playwright / artefatos locais de teste
+.playwright-mcp/

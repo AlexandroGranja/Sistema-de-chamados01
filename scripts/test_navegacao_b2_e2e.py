@@ -21,7 +21,7 @@ load_dotenv(os.path.join(ROOT, ".env"))
 load_dotenv(os.path.join(BACKEND, ".env"))
 
 API_BASE = os.environ.get("CHAMADOS_API_URL", "http://127.0.0.1:8000").rstrip("/")
-LOGIN_USER = os.environ.get("E2E_LOGIN_USER", "alexandro granja")
+LOGIN_USER = os.environ.get("E2E_LOGIN_USER", "admin_demo")
 LOGIN_PASS = os.environ.get("E2E_LOGIN_PASS", "")
 
 

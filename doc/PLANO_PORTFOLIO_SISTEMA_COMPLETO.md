@@ -95,18 +95,18 @@ Continuamos o trabalho **B → C** já planejado e acrescentamos **D (portfólio
 
 ---
 
-### Fase D — Portfólio e apresentação
+### Fase D — Portfólio e apresentação ✅
 
 **Meta:** projeto “completo” para GitHub, LinkedIn e entrevistas.
 
-| # | Entrega | Detalhe |
-|---|---------|---------|
-| D1 | **README principal** orientado a Chamados + seção Integração Telefonia | Hero: stack, screenshot, fluxo |
-| D2 | **Dados demo anonimizados** | Nomes/equipes fictícios ou genéricos; seed script |
-| D3 | **Screenshots / GIF** | 3 cenas: dashboard, fluxo linha, auditoria |
-| D4 | **Vídeo curto ou walkthrough** | 2–3 min mostrando integração |
-| D5 | **Deploy opcional** | Railway/Render/VPS — pelo menos API + frontend |
-| D6 | **Case study** (Obsidian + 1 página markdown) | Problema → solução → stack → resultado |
+| # | Entrega | Status |
+|---|---------|--------|
+| D1 | **README principal** orientado a Chamados + seção Integração Telefonia | ✅ |
+| D2 | **Dados demo anonimizados** | ✅ `scripts/anonimizar_dados_demo` |
+| D3 | **Screenshots / GIF** | 📋 checklist em `SCREENSHOTS_CHECKLIST.md` |
+| D4 | **Vídeo curto ou walkthrough** | opcional |
+| D5 | **Deploy opcional** | não solicitado |
+| D6 | **Case study** | ✅ `CASE_STUDY_PORTFOLIO.md` + textos LinkedIn/CV |
 
 **Tom do portfólio:** sistema real construído em ambiente corporativo, evoluído para projeto pessoal open/private com arquitetura profissional.
 
@@ -145,13 +145,13 @@ Só entrar aqui quando você quiser “polir” além do necessário para portf�
 
 ## Critérios de “sistema completo” (Definition of Done)
 
-- [ ] Operador abre e resolve ticket **só pelo Chamados** nos fluxos de linha
-- [ ] Toda alteração de linha ligada a um ticket grava **auditoria com `ticket_id`**
-- [ ] Link explícito Chamados → Gerenciamento → voltar ao ticket
-- [ ] Um comando sobe o ambiente (`ativador_completo.bat` ou `docker compose up`)
-- [ ] README explica arquitetura em 5 minutos
-- [ ] Dados demo permitem testar sem informação real da Prosper
-- [ ] Repositório privado/público com histórico de commits coerente
+- [x] Operador abre e resolve ticket **só pelo Chamados** nos fluxos de linha
+- [x] Toda alteração de linha ligada a um ticket grava **auditoria com `ticket_id`**
+- [x] Link explícito Chamados → Gerenciamento → voltar ao ticket
+- [x] Um comando sobe o ambiente (`ativador_completo.bat` ou `docker compose up`)
+- [x] README explica arquitetura em 5 minutos
+- [x] Dados demo permitem testar sem informação real da empresa anterior
+- [x] Repositório público com histórico de commits coerente e dados anonimizados
 
 ---
 

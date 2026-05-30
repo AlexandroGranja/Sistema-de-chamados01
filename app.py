@@ -65,9 +65,9 @@ from src.core.config import (
     RULES_FILE, DOC_DIR, is_postgres_configured, get_chamados_app_url,
 )
 from src.core.streamlit_access import resolve_streamlit_access
-ABAS_ALIMENTO = ["Nova Prosper"]
-ABAS_MEDICAMENTO = ["Prosper Norte", "Prosper Sul"]
-ABAS_FOCO = ["Prosper Norte", "Prosper Sul", "Nova Prosper", "Promotores", "Internos", "Troca de Aparelho", "Devolução Manutenção", "Roubo-Perda"]
+ABAS_ALIMENTO = ["Centro Alimentos"]
+ABAS_MEDICAMENTO = ["Distrito Norte", "Distrito Sul"]
+ABAS_FOCO = ["Distrito Norte", "Distrito Sul", "Centro Alimentos", "Promotores", "Internos", "Troca de Aparelho", "Devolução Manutenção", "Roubo-Perda"]
 ABAS_PROMOTORES = ["Promotores"]
 ABAS_INTERNOS = ["Internos"]
 ABAS_MANUTENCAO = ["Troca de Aparelho", "Devolução Manutenção", "Devolucao Manutencao"]
@@ -87,12 +87,12 @@ EQUIPES_ALIMENTO = [
 ]
 EQUIPES_MEDICAMENTO = [
     "Gerentes do Medicamento",
-    "Prosper Norte",
-    "Prosper Sul",
+    "Distrito Norte",
+    "Distrito Sul",
 ]
 GESTORES_MEDICAMENTO = {
-    "Prosper Norte": "Priscila Rangel Manhães",
-    "Prosper Sul": "Gustavo Luis Dias De Armada",
+    "Distrito Norte": "Gestora Norte Demo",
+    "Distrito Sul": "Gestor Sul Demo",
 }
 DEFAULT_COLUMNS = [
     "Codigo",

@@ -4,7 +4,7 @@ Redefine a senha de um usuário existente (usuarios_app).
 
 Uso:
   python -m scripts.redefinir_senha
-  python -m scripts.redefinir_senha "alexandro granja"
+  python -m scripts.redefinir_senha "admin_demo"
 """
 
 from __future__ import annotations

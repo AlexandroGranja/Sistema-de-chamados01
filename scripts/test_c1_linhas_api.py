@@ -12,7 +12,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(ROOT, ".env"))
 
 API = os.environ.get("CHAMADOS_API_URL", "http://127.0.0.1:8000").rstrip("/")
-USER = os.environ.get("E2E_LOGIN_USER", "alexandro granja")
+USER = os.environ.get("E2E_LOGIN_USER", "admin_demo")
 PASS = sys.argv[1].strip() if len(sys.argv) > 1 else os.environ.get("E2E_LOGIN_PASS", "")
 
 
