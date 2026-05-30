@@ -73,17 +73,17 @@ A tabela `chamados` **não é apagada** — permanece como arquivo histórico.
 
 ## Mapeamento legado → React
 
-| chamados | tickets |
-|----------|---------|
-| tipo `incidente` | `incident` |
-| tipo `solicitacao` / `gerenciamento` | `request` |
-| tipo `manutencao` | `maintenance` |
-| status `aberto` | `open` |
-| status `em_andamento` | `in_progress` |
-| status `aguardando` | `waiting_user` |
-| status `resolvido` | `resolved` |
-| status `fechado` | `closed` |
-| prioridade `baixa`…`critica` | `low`…`critical` |
+| chamados | tickets (enum PostgreSQL) |
+|----------|---------------------------|
+| tipo `incidente` | `INCIDENT` |
+| tipo `solicitacao` / `gerenciamento` | `REQUEST` |
+| tipo `manutencao` | `MAINTENANCE` |
+| status `aberto` | `OPEN` |
+| status `em_andamento` | `IN_PROGRESS` |
+| status `aguardando` | `WAITING_USER` |
+| status `resolvido` | `RESOLVED` |
+| status `fechado` | `CLOSED` |
+| prioridade `baixa`…`critica` | `LOW`…`CRITICAL` |
 
 ---
 

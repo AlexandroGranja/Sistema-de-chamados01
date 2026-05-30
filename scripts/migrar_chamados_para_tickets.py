@@ -17,26 +17,26 @@ from typing import Any, Optional
 from src.core.config import is_postgres_configured
 
 _MAP_TIPO = {
-    "gerenciamento": "request",
-    "incidente": "incident",
-    "solicitacao": "request",
-    "manutencao": "maintenance",
-    "roubo_perda": "incident",
+    "gerenciamento": "REQUEST",
+    "incidente": "INCIDENT",
+    "solicitacao": "REQUEST",
+    "manutencao": "MAINTENANCE",
+    "roubo_perda": "INCIDENT",
 }
 
 _MAP_STATUS = {
-    "aberto": "open",
-    "em_andamento": "in_progress",
-    "aguardando": "waiting_user",
-    "resolvido": "resolved",
-    "fechado": "closed",
+    "aberto": "OPEN",
+    "em_andamento": "IN_PROGRESS",
+    "aguardando": "WAITING_USER",
+    "resolvido": "RESOLVED",
+    "fechado": "CLOSED",
 }
 
 _MAP_PRIORIDADE = {
-    "baixa": "low",
-    "normal": "medium",
-    "alta": "high",
-    "critica": "critical",
+    "baixa": "LOW",
+    "normal": "MEDIUM",
+    "alta": "HIGH",
+    "critica": "CRITICAL",
 }
 
 
@@ -145,9 +145,9 @@ def executar_migracao(
                 ticket_number = f"LEG-{numero}"
                 title = str(row[5] or f"Chamado legado #{numero}")[:255]
                 description = str(row[6] or title or "Migrado da tabela chamados.")
-                ticket_type = _map_val(row[2], _MAP_TIPO, "request")
-                status = _map_val(row[3], _MAP_STATUS, "open")
-                priority = _map_val(row[4], _MAP_PRIORIDADE, "medium")
+                ticket_type = _map_val(row[2], _MAP_TIPO, "REQUEST")
+                status = _map_val(row[3], _MAP_STATUS, "OPEN")
+                priority = _map_val(row[4], _MAP_PRIORIDADE, "MEDIUM")
                 requester_id = _resolve_requester_id(cur, row[11], fallback_requester)
                 if requester_id is None:
                     log.append(f"SKIP chamado {chamado_id}: sem requester_id")
@@ -197,8 +197,8 @@ def executar_migracao(
                         internal_notes or None,
                         row[12],
                         row[13],
-                        row[14] if status == "resolved" else None,
-                        row[14] if status == "closed" else None,
+                        row[14] if status == "RESOLVED" else None,
+                        row[14] if status == "CLOSED" else None,
                     ),
                 )
                 new_ticket_id = int(cur.fetchone()[0])

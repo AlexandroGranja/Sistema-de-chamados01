@@ -82,37 +82,41 @@ def _pick_vago_line(cur) -> tuple[int, str]:
 
 
 def _create_ticket(cur, user_app_id: int) -> int:
+    """Cria ticket real em `tickets` (Fase C2 — nao usar tabela legada `chamados`)."""
     suffix = uuid.uuid4().hex[:8]
     titulo = f"E2E B3 auditoria {suffix}"
     cur.execute(
+        "SELECT id FROM users WHERE snipe_user_id = %s ORDER BY id LIMIT 1",
+        (user_app_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        raise SystemExit(
+            f"Usuario sem espelho em users (snipe_user_id={user_app_id}). "
+            "Rode: python -m scripts.sync_usuarios_chamados"
+        )
+    requester_id = int(row[0])
+    cur.execute(
         """
-        WITH next_num AS (
-            SELECT COALESCE(MAX(id), 0) + 1 AS nid FROM chamados
+        INSERT INTO tickets (
+            ticket_number, title, description,
+            ticket_type, priority, status, requester_id,
+            category, subcategory, internal_notes
         )
-        INSERT INTO chamados (
-            numero_chamado, tipo, status, prioridade, origem,
-            titulo, descricao,
-            solicitante_id, responsavel_id,
-            category, subcategory
+        VALUES (
+            'TMP', %s, 'Teste automatico B3 auditoria API',
+            'REQUEST'::tickettype, 'MEDIUM'::ticketpriority, 'OPEN'::ticketstatus, %s,
+            'TI', 'Onboarding', %s
         )
-        SELECT
-            nid::text,
-            'onboarding',
-            'open',
-            'medium',
-            'e2e_test',
-            %s,
-            'Teste automatico B3 auditoria API',
-            %s,
-            %s,
-            'TI',
-            'Onboarding'
-        FROM next_num
         RETURNING id
         """,
-        (titulo, user_app_id, user_app_id),
+        (titulo, requester_id, f"[e2e-b3-{suffix}]"),
     )
     ticket_id = int(cur.fetchone()[0])
+    cur.execute(
+        "UPDATE tickets SET ticket_number = %s WHERE id = %s",
+        (str(ticket_id), ticket_id),
+    )
     cur.connection.commit()
     return ticket_id
 
