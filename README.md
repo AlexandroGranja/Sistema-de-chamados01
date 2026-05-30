@@ -1,8 +1,22 @@
 # Gerenciamento de Telefones
 
-Painel para controle de linhas telefônicas por equipe, operando com PostgreSQL como backend principal e preparado para o módulo de chamados no mesmo banco.
+Painel para controle de linhas telefônicas por equipe, operando com PostgreSQL como backend principal e integrado ao **Sistema de Chamados TI** no mesmo repositório (monorepo).
 
-## Estrutura do Projeto
+## Estrutura do monorepo
+
+```
+GerenciamentoDeTelefones/
+├── app.py, run.py, src/           # Gerenciamento de Telefones (Streamlit, :8501)
+├── Sistema de Chamados TI/        # Chamados TI (React :3000 + FastAPI :8000)
+├── doc/                           # Documentação central — ver doc/README.md
+├── scripts/                       # Init Postgres, migrações, utilitários
+├── _archive/                      # Cópias históricas (não usar em produção)
+├── .env.example                   # Variáveis (copiar para .env)
+├── ativador.bat                   # Só Streamlit
+└── ativador_completo.bat          # Streamlit + Chamados (recomendado)
+```
+
+## Estrutura do app Streamlit
 
 ```
 Planilhas Telefones/
@@ -46,7 +60,8 @@ As planilhas nao fazem mais parte do fluxo operacional da aplicacao.
 
 ### Opção rápida
 
-- **Windows:** Dê duplo clique em **`ativador.bat`** — instala dependências e inicia o sistema.
+- **Windows (recomendado — tudo integrado):** Dê duplo clique em **`ativador_completo.bat`** — sobe Gerenciamento (:8501), API Chamados (:8000) e web Chamados (:3000).
+- **Só Gerenciamento:** **`ativador.bat`** — instala dependências e inicia o Streamlit.
 - **Linux/Servidor:** Execute **`./ativador.sh`** (antes: `chmod +x ativador.sh`). O app escuta em todas as interfaces (0.0.0.0) para acesso remoto.
 
 ### Login
@@ -88,8 +103,11 @@ DATABASE_URL=postgresql://usuario:senha@host:5432/gerenciamento_telefones
 
 Forma mais simples no projeto:
 
-1. copie `.env.example` para `.env`
-2. troque `SUA_SENHA` pela senha real do PostgreSQL
+1. copie `.env.example` para `.env` na raiz
+2. copie `Sistema de Chamados TI/backend/env.example` para `backend/.env` com o **mesmo** `DATABASE_URL`
+3. troque `SUA_SENHA` pela senha real do PostgreSQL
+
+Documentação completa: **`doc/README.md`**
 
 Exemplo:
 

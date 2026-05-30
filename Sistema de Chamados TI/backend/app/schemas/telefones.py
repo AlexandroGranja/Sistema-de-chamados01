@@ -133,3 +133,7 @@ class NovaLinhaRequest(BaseModel):
 class TelefonesActionResponse(BaseModel):
     sucesso: bool
     mensagem: str
+
+
+class StreamlitLinkResponse(BaseModel):
+    url: str

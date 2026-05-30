@@ -7,11 +7,15 @@ import {
 } from '@mui/material'
 import ReportProblemIcon from '@mui/icons-material/ReportProblem'
 import LinhaSearch from '../components/LinhaSearch'
+import EditarNoGerenciamentoButton from '../components/EditarNoGerenciamentoButton'
+import { useTicketContext } from '../hooks/useTicketContext'
 import { telefonesAPI } from '../services/api'
 import toast from 'react-hot-toast'
 
 const RouboPerdaLinha = () => {
+  const { ticketId } = useTicketContext()
   const [linhaId, setLinhaId] = useState(null)
+  const [linhaPreview, setLinhaPreview] = useState(null)
   const [cenario, setCenario] = useState('A')  // 'A' | 'B'
   const [form, setForm] = useState({
     imei_a: '', imei_b: '', marca: '', modelo: '',
@@ -39,6 +43,7 @@ const RouboPerdaLinha = () => {
         ...form,
         linha_id: linhaId,
         nova_linha: cenario === 'B' ? form.nova_linha : '',
+        ticket_id: ticketId || undefined,
       }
       const data = await telefonesAPI.rouboPenda(payload)
       setResultado({ sucesso: true, mensagem: data.mensagem })
@@ -67,6 +72,7 @@ const RouboPerdaLinha = () => {
         <LinhaSearch
           onLinhaFound={(l) => {
             setLinhaId(l.id)
+            setLinhaPreview(l)
             setForm((prev) => ({
               ...prev,
               imei_a: l.imei_a || '',
@@ -81,9 +87,19 @@ const RouboPerdaLinha = () => {
           }}
           onLinhaClear={() => {
             setLinhaId(null)
+            setLinhaPreview(null)
             setForm({ imei_a: '', imei_b: '', marca: '', modelo: '', aparelho: '', numero_serie: '', ativo: '', chip: '', nova_linha: '', observacao: '' })
           }}
         />
+
+        {linhaPreview && (
+          <Box sx={{ mt: 2 }}>
+            <EditarNoGerenciamentoButton
+              linha={linhaPreview.linha || ''}
+              equipe={linhaPreview.equipe || ''}
+            />
+          </Box>
+        )}
 
         <Divider sx={{ my: 3 }} />
         <FormLabel component="legend" sx={{ mb: 1, fontWeight: 600 }}>Cenário</FormLabel>

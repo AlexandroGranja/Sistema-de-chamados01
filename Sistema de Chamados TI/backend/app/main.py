@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def _ensure_postgres_userrole_requester() -> None:
-    """Garante valor 'requester' no ENUM PostgreSQL (caso migração Alembic não tenha sido aplicada)."""
+    """Garante valor 'requester' no ENUM PostgreSQL, se o tipo existir no banco."""
     try:
         from sqlalchemy import text
         from app.core.database import engine
@@ -22,6 +22,12 @@ def _ensure_postgres_userrole_requester() -> None:
         if not (url.startswith("postgresql") or "postgres" in url.lower()):
             return
         with engine.connect() as conn:
+            has_enum = conn.execute(
+                text("SELECT 1 FROM pg_type WHERE typname = 'userrole' LIMIT 1")
+            ).scalar()
+            if not has_enum:
+                # Bancos novos usam VARCHAR em users.role (UserRoleColumn); nada a fazer.
+                return
             conn.execute(
                 text(
                     """

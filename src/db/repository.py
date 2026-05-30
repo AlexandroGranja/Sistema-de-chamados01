@@ -424,6 +424,63 @@ def encerrar_sessao(token: str, db_path: Optional[Path] = None) -> None:
         conn.close()
 
 
+def _tickets_table_exists(cur) -> bool:
+    cur.execute(
+        """
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'tickets'
+        LIMIT 1
+        """
+    )
+    return cur.fetchone() is not None
+
+
+def _apply_postgres_b1_migrations(cur) -> None:
+    """Fase B1: auditoria/movimentacao aceitam tickets.id; view unificada opcional."""
+    cur.execute(
+        """
+        DO $$
+        DECLARE
+            r RECORD;
+        BEGIN
+            FOR r IN
+                SELECT con.conname, rel.relname
+                FROM pg_constraint con
+                JOIN pg_class rel ON rel.oid = con.conrelid
+                WHERE con.contype = 'f'
+                  AND rel.relname IN ('auditoria', 'movimentacoes_linha')
+                  AND pg_get_constraintdef(con.oid) LIKE '%chamado_id%'
+            LOOP
+                EXECUTE format('ALTER TABLE %I DROP CONSTRAINT IF EXISTS %I', r.relname, r.conname);
+            END LOOP;
+        END $$;
+        """
+    )
+    if _tickets_table_exists(cur):
+        cur.execute(
+            """
+            CREATE OR REPLACE VIEW v_chamado_unificado AS
+            SELECT
+                t.id,
+                'tickets'::text AS origem,
+                t.ticket_number AS numero,
+                t.title AS titulo,
+                t.status::text AS status
+            FROM tickets t
+            UNION ALL
+            SELECT
+                c.id,
+                'chamados'::text AS origem,
+                c.numero_chamado AS numero,
+                c.titulo,
+                c.status
+            FROM chamados c
+            WHERE NOT EXISTS (SELECT 1 FROM tickets t WHERE t.id = c.id)
+            """
+        )
+
+
 def init_db(db_path: Optional[Path] = None) -> None:
     """Inicializa o schema do banco."""
     schema_name = "schema_postgres.sql" if _is_postgres() else "schema.sql"
@@ -448,6 +505,7 @@ def init_db(db_path: Optional[Path] = None) -> None:
                             cur.execute("ALTER TABLE chamados ADD COLUMN IF NOT EXISTS location VARCHAR(100)")
                             cur.execute("ALTER TABLE chamados ADD COLUMN IF NOT EXISTS equipment_info TEXT")
                             cur.execute("ALTER TABLE chamados ADD COLUMN IF NOT EXISTS internal_notes TEXT")
+                            _apply_postgres_b1_migrations(cur)
                             conn.commit()
                             return
                         finally:
@@ -797,6 +855,135 @@ def listar_auditoria(
         ]
     finally:
         conn.close()
+
+
+def resolver_referencia_chamado(
+    raw_id: str,
+    db_path: Optional[Path] = None,
+) -> dict[str, Any]:
+    """
+    Resolve um ID recebido por URL para auditoria.
+
+    Prioridade: tickets.id (React) -> chamados.id (legado Streamlit).
+    """
+    raw_id = str(raw_id or "").strip()
+    base: dict[str, Any] = {
+        "raw_id": raw_id,
+        "resolved_id": None,
+        "source": None,
+        "label": "",
+        "numero": "",
+        "valido": False,
+        "legado": False,
+        "aviso": "",
+    }
+    if not raw_id:
+        base["aviso"] = "Nenhum chamado informado."
+        return base
+    if not raw_id.isdigit():
+        base["aviso"] = "ID de chamado deve ser numérico."
+        return base
+
+    chamado_int = int(raw_id)
+    if not _is_postgres():
+        base["resolved_id"] = chamado_int
+        base["source"] = "chamados"
+        base["valido"] = True
+        base["legado"] = True
+        base["label"] = f"Chamado legado #{raw_id}"
+        base["numero"] = raw_id
+        return base
+
+    conn = get_connection(db_path)
+    try:
+        with conn.cursor() as cur:
+            if _tickets_table_exists(cur):
+                cur.execute(
+                    """
+                    SELECT id, ticket_number, title
+                    FROM tickets
+                    WHERE id = %s
+                    """,
+                    (chamado_int,),
+                )
+                row = cur.fetchone()
+                if row:
+                    base.update(
+                        {
+                            "resolved_id": int(row[0]),
+                            "source": "tickets",
+                            "label": f"Ticket #{row[1]}",
+                            "numero": str(row[1] or raw_id),
+                            "valido": True,
+                            "legado": False,
+                        }
+                    )
+                    return base
+
+            cur.execute(
+                """
+                SELECT id, numero_chamado, COALESCE(titulo, numero_chamado)
+                FROM chamados
+                WHERE id = %s
+                """,
+                (chamado_int,),
+            )
+            row = cur.fetchone()
+            if row:
+                base.update(
+                    {
+                        "resolved_id": int(row[0]),
+                        "source": "chamados",
+                        "label": f"Chamado legado #{row[1] or raw_id}",
+                        "numero": str(row[1] or raw_id),
+                        "valido": True,
+                        "legado": True,
+                        "aviso": "Referência encontrada na tabela legada `chamados`. Prefira abrir pelo Sistema de Chamados (tickets).",
+                    }
+                )
+                return base
+
+        base["aviso"] = (
+            f"Chamado/ticket `{raw_id}` não encontrado. "
+            "Verifique o ID no Sistema de Chamados ou use um chamado legado existente."
+        )
+        return base
+    finally:
+        conn.close()
+
+
+def preparar_referencia_chamado(
+    raw_id: str,
+    tipo_stub: str = "gerenciamento",
+    db_path: Optional[Path] = None,
+) -> dict[str, Any]:
+    """
+    Resolve referência de chamado e cria stub legado apenas quando necessário.
+    """
+    ref = resolver_referencia_chamado(raw_id, db_path=db_path)
+    if ref.get("valido"):
+        return ref
+
+    raw_id = str(raw_id or "").strip()
+    if not raw_id.isdigit():
+        return ref
+
+    stub_id = garantir_chamado_stub(raw_id, tipo=tipo_stub, db_path=db_path)
+    if stub_id is None:
+        return ref
+
+    ref.update(
+        {
+            "resolved_id": int(stub_id),
+            "source": "chamados",
+            "label": f"Chamado legado #{raw_id}",
+            "numero": raw_id,
+            "valido": True,
+            "legado": True,
+            "aviso": "Referência criada automaticamente como chamado legado (stub).",
+        }
+    )
+    return ref
 
 
 def garantir_chamado_stub(

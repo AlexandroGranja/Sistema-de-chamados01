@@ -146,6 +146,9 @@ export const telefonesAPI = {
 
   transferencia: (data) =>
     api.post('/telefones/transferencia', data).then((res) => res.data),
+
+  linkGerenciamento: (params) =>
+    api.get('/telefones/link-gerenciamento', { params }).then((res) => res.data),
 }
 
 export default api

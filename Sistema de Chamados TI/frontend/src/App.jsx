@@ -71,6 +71,7 @@ function App() {
               <Route index element={<Dashboard />} />
               <Route path="users" element={<Users />} />
               <Route path="tickets" element={<Tickets />} />
+              <Route path="tickets/:ticketId" element={<Tickets />} />
               <Route path="novo-chamado" element={<NovoChamado />} />
               <Route path="desligamento" element={<Desligamento />} />
               <Route path="onboarding" element={<Onboarding />} />

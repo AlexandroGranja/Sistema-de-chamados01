@@ -9,6 +9,7 @@ import os
 from app.schemas.ticket import OffboardingAction
 from app.core.config import settings
 from app.core.database import engine
+from app.services.auditoria import audit_linha_create, audit_linha_update, fetch_linha_snapshot
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -270,6 +271,8 @@ def sync_offboarding_to_telefones(
     maintenance_reason: str = "",
     return_date: str = "",
     ticket_id: int | None = None,
+    audit_user_id: Optional[int] = None,
+    audit_username: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """
     Sincroniza desligamento do chamado para o banco do Gerenciamento de Telefones.
@@ -296,6 +299,8 @@ def sync_offboarding_to_telefones(
             maintenance_reason=maintenance_reason,
             return_date=return_date,
             ticket_id=ticket_id,
+            audit_user_id=audit_user_id,
+            audit_username=audit_username,
         )
 
     if not db_path:
@@ -478,11 +483,20 @@ def _sync_team_leadership_if_needed_postgres(*, row: dict, employee_name: str) -
             )
 
 
-def _apply_vacancy_postgres(*, row: dict, employee_name: str, ticket_id: int | None = None) -> None:
+def _apply_vacancy_postgres(
+    *,
+    row: dict,
+    employee_name: str,
+    ticket_id: int | None = None,
+    audit_user_id: Optional[int] = None,
+    audit_username: Optional[str] = None,
+) -> None:
     note = f"Linha marcada como VAGO automaticamente via desligamento ({employee_name})"
     if ticket_id is not None:
         note = f"{note} [ticket_id={ticket_id}]"
 
+    linha_id = int(row["id"])
+    antes = fetch_linha_snapshot(linha_id)
     new_obs = _append_note(row.get("observacao"), note)
     with engine.begin() as conn:
         conn.execute(
@@ -501,8 +515,17 @@ def _apply_vacancy_postgres(*, row: dict, employee_name: str, ticket_id: int | N
                 WHERE id = :id
                 """
             ),
-            {"obs": new_obs, "id": row["id"]},
+            {"obs": new_obs, "id": linha_id},
         )
+    audit_linha_update(
+        acao="desligamento_linha",
+        linha_id=linha_id,
+        antes=antes,
+        ticket_id=ticket_id,
+        detalhes=note,
+        user_id=audit_user_id,
+        username=audit_username or "",
+    )
 
 
 def _get_maintenance_labels_postgres() -> tuple[str, str, str]:
@@ -538,6 +561,8 @@ def _create_maintenance_copy_postgres(
     reason: str,
     return_date: str,
     ticket_id: int | None = None,
+    audit_user_id: Optional[int] = None,
+    audit_username: Optional[str] = None,
 ) -> None:
     maintenance_segment, maintenance_group, maintenance_team = _get_maintenance_labels_postgres()
 
@@ -631,6 +656,42 @@ def _create_maintenance_copy_postgres(
                 "observacao": new_obs,
             },
         )
+    new_row = fetch_linha_snapshot_by_numero(mnt_line)
+    if new_row.get("id"):
+        audit_linha_create(
+            linha_id=int(new_row["id"]),
+            depois=new_row,
+            ticket_id=ticket_id,
+            detalhes=note,
+            user_id=audit_user_id,
+            username=audit_username or "",
+            acao="enviar_manutencao",
+        )
+
+
+def fetch_linha_snapshot_by_numero(numero_linha: str) -> dict:
+    """Busca linha pelo número (helper local para auditoria pós-insert)."""
+    num = (numero_linha or "").strip()
+    if not num:
+        return {}
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text(
+                    """
+                    SELECT * FROM linhas
+                    WHERE lower(trim(coalesce(numero_linha, ''))) = lower(trim(:nl))
+                       OR lower(trim(coalesce(linha, ''))) = lower(trim(:nl))
+                    ORDER BY id DESC
+                    LIMIT 1
+                    """
+                ),
+                {"nl": num},
+            ).mappings().first()
+            return dict(row) if row else {}
+    except Exception:
+        logger.exception("Falha ao buscar linha por numero=%s", num)
+        return {}
 
 
 def _apply_maintenance_only_postgres(
@@ -640,6 +701,8 @@ def _apply_maintenance_only_postgres(
     reason: str,
     return_date: str,
     ticket_id: int | None = None,
+    audit_user_id: Optional[int] = None,
+    audit_username: Optional[str] = None,
 ) -> None:
     maintenance_segment, _, _ = _get_maintenance_labels_postgres()
     now = datetime.now()
@@ -656,6 +719,8 @@ def _apply_maintenance_only_postgres(
     if reason:
         note = f"{note}. Motivo: {reason}"
 
+    linha_id = int(row["id"])
+    antes = fetch_linha_snapshot(linha_id)
     new_obs = _append_note(row.get("observacao"), note)
 
     with engine.begin() as conn:
@@ -677,12 +742,21 @@ def _apply_maintenance_only_postgres(
             {
                 "segmento": maintenance_segment,
                 "obs": new_obs,
-                "id": row["id"],
+                "id": linha_id,
                 "data_troca": data_troca,
                 "data_retorno": data_retorno,
                 "data_ocorrencia": data_troca,
             },
         )
+    audit_linha_update(
+        acao="desligamento_linha",
+        linha_id=linha_id,
+        antes=antes,
+        ticket_id=ticket_id,
+        detalhes=note,
+        user_id=audit_user_id,
+        username=audit_username or "",
+    )
 
 
 def _sync_offboarding_to_telefones_postgres(
@@ -693,6 +767,8 @@ def _sync_offboarding_to_telefones_postgres(
     maintenance_reason: str = "",
     return_date: str = "",
     ticket_id: int | None = None,
+    audit_user_id: Optional[int] = None,
+    audit_username: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """
     Integração PostgreSQL unificada (linhas do Gerenciamento).
@@ -728,11 +804,15 @@ def _sync_offboarding_to_telefones_postgres(
                 reason=maintenance_reason.strip(),
                 return_date=return_date.strip(),
                 ticket_id=ticket_id,
+                audit_user_id=audit_user_id,
+                audit_username=audit_username,
             )
             _apply_vacancy_postgres(
                 row=row,
                 employee_name=employee_name.strip(),
                 ticket_id=ticket_id,
+                audit_user_id=audit_user_id,
+                audit_username=audit_username,
             )
         elif action == OffboardingAction.MAINTENANCE_ONLY.value:
             _apply_maintenance_only_postgres(
@@ -741,12 +821,16 @@ def _sync_offboarding_to_telefones_postgres(
                 reason=maintenance_reason.strip(),
                 return_date=return_date.strip(),
                 ticket_id=ticket_id,
+                audit_user_id=audit_user_id,
+                audit_username=audit_username,
             )
         else:
             _apply_vacancy_postgres(
                 row=row,
                 employee_name=employee_name.strip(),
                 ticket_id=ticket_id,
+                audit_user_id=audit_user_id,
+                audit_username=audit_username,
             )
 
     if action == OffboardingAction.MAINTENANCE_ONLY.value:
@@ -1129,6 +1213,8 @@ def criar_nova_linha(
     chip: str = "",
     operadora: str = "",
     ticket_id: Optional[int] = None,
+    audit_user_id: Optional[int] = None,
+    audit_username: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """
     Cria uma nova linha no banco de telefones com todos os dados do colaborador.
@@ -1162,7 +1248,7 @@ def criar_nova_linha(
                 return False, f"Já existe uma linha com o número '{numero_linha}' no banco."
 
         with engine.begin() as conn:
-            conn.execute(
+            result = conn.execute(
                 text(
                     """
                     INSERT INTO linhas (
@@ -1184,6 +1270,7 @@ def criar_nova_linha(
                         :numero_serie, :ativo, :chip, :operadora,
                         :observacao
                     )
+                    RETURNING id
                     """
                 ),
                 {
@@ -1210,6 +1297,17 @@ def criar_nova_linha(
                     "observacao": note,
                 },
             )
+            new_id = int(result.scalar_one())
+        depois = fetch_linha_snapshot(new_id)
+        audit_linha_create(
+            linha_id=new_id,
+            depois=depois,
+            ticket_id=ticket_id,
+            detalhes=note,
+            user_id=audit_user_id,
+            username=audit_username or "",
+            acao="criar_linha",
+        )
         return True, f"Linha {numero_linha} criada com sucesso para {nome}."
     except Exception as exc:
         logger.exception("Falha em criar_nova_linha")
@@ -1229,6 +1327,8 @@ def atribuir_linha(
     email: str = "",
     nome_guerra: str = "",
     ticket_id: Optional[int] = None,
+    audit_user_id: Optional[int] = None,
+    audit_username: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """
     Onboarding: atribui colaborador a uma linha (preferencialmente VAGO).
@@ -1264,6 +1364,8 @@ def atribuir_linha(
         if not row:
             return False, f"Linha '{numero_linha}' não encontrada no banco de telefones."
 
+        linha_id = int(row["id"])
+        antes = fetch_linha_snapshot(linha_id)
         new_obs = _append_note(row.get("observacao"), note)
 
         with engine.begin() as conn:
@@ -1299,9 +1401,18 @@ def atribuir_linha(
                     "gestor": gestor or "",
                     "email": email or "",
                     "obs": new_obs,
-                    "id": row["id"],
+                    "id": linha_id,
                 },
             )
+        audit_linha_update(
+            acao="onboarding_linha",
+            linha_id=linha_id,
+            antes=antes,
+            ticket_id=ticket_id,
+            detalhes=note,
+            user_id=audit_user_id,
+            username=audit_username or "",
+        )
         return True, f"Linha '{numero_linha}' atribuída a '{nome}' com sucesso."
     except Exception as exc:
         logger.exception("Falha no onboarding de linha")
@@ -1321,6 +1432,8 @@ def atualizar_aparelho(
     chip: str = "",
     observacao_extra: str = "",
     ticket_id: Optional[int] = None,
+    audit_user_id: Optional[int] = None,
+    audit_username: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """
     Manutenção/Troca: atualiza apenas os campos do aparelho.
@@ -1341,6 +1454,7 @@ def atualizar_aparelho(
         if not row:
             return False, f"Linha id={linha_id} não encontrada."
 
+        antes = fetch_linha_snapshot(linha_id)
         new_obs = _append_note(row.get("observacao"), note)
 
         updates: dict = {"obs": new_obs, "id": linha_id}
@@ -1366,6 +1480,15 @@ def atualizar_aparelho(
                 text(f"UPDATE linhas SET {', '.join(set_parts)} WHERE id = :id"),
                 updates,
             )
+        audit_linha_update(
+            acao="manutencao_aparelho",
+            linha_id=linha_id,
+            antes=antes,
+            ticket_id=ticket_id,
+            detalhes=note,
+            user_id=audit_user_id,
+            username=audit_username or "",
+        )
         return True, "Dados do aparelho atualizados com sucesso."
     except Exception as exc:
         logger.exception("Falha ao atualizar aparelho")
@@ -1386,6 +1509,8 @@ def registrar_roubo_perda(
     nova_linha: str = "",
     observacao_extra: str = "",
     ticket_id: Optional[int] = None,
+    audit_user_id: Optional[int] = None,
+    audit_username: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """
     Roubo/Perda:
@@ -1409,6 +1534,7 @@ def registrar_roubo_perda(
         if not row:
             return False, f"Linha id={linha_id} não encontrada."
 
+        antes = fetch_linha_snapshot(linha_id)
         new_obs = _append_note(row.get("observacao"), note)
 
         updates: dict = {"obs": new_obs, "id": linha_id}
@@ -1439,6 +1565,15 @@ def registrar_roubo_perda(
                 text(f"UPDATE linhas SET {', '.join(set_parts)} WHERE id = :id"),
                 updates,
             )
+        audit_linha_update(
+            acao="roubo_perda_linha",
+            linha_id=linha_id,
+            antes=antes,
+            ticket_id=ticket_id,
+            detalhes=note,
+            user_id=audit_user_id,
+            username=audit_username or "",
+        )
         msg = (
             f"Roubo/Perda cenário {cenario} registrado. "
             + (f"Nova linha: {nova_linha}." if nova_linha else "Linha mantida.")
@@ -1459,6 +1594,8 @@ def transferir_colaborador(
     empresa: str = "",
     observacao_extra: str = "",
     ticket_id: Optional[int] = None,
+    audit_user_id: Optional[int] = None,
+    audit_username: Optional[str] = None,
 ) -> Tuple[bool, str]:
     """
     Transferência: atualiza equipe, setor, gestor e opcionalmente cargo/empresa.
@@ -1479,6 +1616,7 @@ def transferir_colaborador(
         if not row:
             return False, f"Linha id={linha_id} não encontrada."
 
+        antes = fetch_linha_snapshot(linha_id)
         new_obs = _append_note(row.get("observacao"), note)
 
         updates: dict = {
@@ -1509,6 +1647,15 @@ def transferir_colaborador(
                 text(f"UPDATE linhas SET {', '.join(set_parts)} WHERE id = :id"),
                 updates,
             )
+        audit_linha_update(
+            acao="transferencia_equipe",
+            linha_id=linha_id,
+            antes=antes,
+            ticket_id=ticket_id,
+            detalhes=note,
+            user_id=audit_user_id,
+            username=audit_username or "",
+        )
         return True, f"Colaborador transferido para equipe '{equipe}' com sucesso."
     except Exception as exc:
         logger.exception("Falha na transferência")

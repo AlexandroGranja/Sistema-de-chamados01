@@ -30,6 +30,7 @@ export const AuthProvider = ({ children }) => {
         if (ssoExchangeInFlightRef.current) {
           return
         }
+        const redirectPath = (urlParams.get('redirect') || '').trim()
         const storageKey = `sso_exchange_done:${ssoCode}`
         if (typeof window !== 'undefined' && window.sessionStorage.getItem(storageKey)) {
           setLoading(false)
@@ -48,6 +49,15 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('token', response.access_token)
             localStorage.setItem('refreshToken', response.refresh_token)
             setToken(response.access_token)
+
+            const safeRedirect =
+              redirectPath.startsWith('/') && !redirectPath.startsWith('//')
+                ? redirectPath
+                : ''
+            if (safeRedirect) {
+              window.location.replace(safeRedirect)
+              return
+            }
 
             // Limpa a query para não reutilizar o mesmo código.
             try {

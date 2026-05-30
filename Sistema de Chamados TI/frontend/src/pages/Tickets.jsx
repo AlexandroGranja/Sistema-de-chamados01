@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams, useParams } from 'react-router-dom'
 import {
   Alert,
   Box,
@@ -473,6 +474,8 @@ const TicketCard = ({ ticket, closed = false, isUpdating = false, onEdit }) => {
 }
 
 const Tickets = () => {
+  const { ticketId: routeTicketId } = useParams()
+  const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [tickets, setTickets] = useState([])
   const [updatingTicketId, setUpdatingTicketId] = useState(null)
@@ -529,6 +532,17 @@ const Tickets = () => {
   useEffect(() => {
     loadTickets()
   }, [])
+
+  useEffect(() => {
+    const tid =
+      routeTicketId ||
+      searchParams.get('ticket_id') ||
+      searchParams.get('chamado_id') ||
+      ''
+    if (tid) {
+      setSearchTicketId(String(tid).trim())
+    }
+  }, [routeTicketId, searchParams])
 
   const openEditModal = (ticket) => {
     const metadata = getMetadata(ticket)

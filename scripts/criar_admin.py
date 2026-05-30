@@ -21,11 +21,21 @@ def main():
         print("Ja existem usuarios. Use o app para criar novos (como admin).")
         return
     print("Criando primeiro usuario administrador...")
+    print("Dica: ao pedir a senha no PowerShell, as letras NAO aparecem — isso e normal.")
     username = input("Usuario: ").strip()
     if not username:
         print("Usuario invalido.")
         sys.exit(1)
-    password = getpass.getpass("Senha: ")
+    if sys.platform == "win32":
+        print("(Use input visivel no Windows para evitar confusao.)")
+        password = input("Senha (min. 4 caracteres): ")
+        confirm = input("Confirme a senha: ")
+    else:
+        password = getpass.getpass("Senha: ")
+        confirm = getpass.getpass("Confirme a senha: ")
+    if password != confirm:
+        print("As senhas nao coincidem.")
+        sys.exit(1)
     if len(password) < 4:
         print("Senha deve ter pelo menos 4 caracteres.")
         sys.exit(1)

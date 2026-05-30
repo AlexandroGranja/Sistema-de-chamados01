@@ -42,3 +42,8 @@ def is_postgres_configured() -> bool:
 def get_chamados_app_url() -> str:
     """URL do sistema de chamados externo (separado)."""
     return os.environ.get("CHAMADOS_APP_URL", "").strip()
+
+
+def get_streamlit_app_url() -> str:
+    """URL base do Gerenciamento de Telefones (Streamlit)."""
+    return os.environ.get("STREAMLIT_APP_URL", "http://localhost:8501").strip()

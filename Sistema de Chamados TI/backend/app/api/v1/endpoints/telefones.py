@@ -2,6 +2,8 @@
 Endpoints de integração com a tabela `linhas` do Gerenciamento de Telefones.
 Todos exigem autenticação de técnico ou admin.
 """
+from typing import Optional, Tuple
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.v1.dependencies import get_current_technician_or_admin
 from app.models.user import User
@@ -16,7 +18,9 @@ from app.schemas.telefones import (
     RouboPerdaRequest,
     TransferenciaRequest,
     TelefonesActionResponse,
+    StreamlitLinkResponse,
 )
+from app.services.streamlit_links import build_streamlit_linha_url
 from app.services.telefones import (
     buscar_linha_por_codigo_ou_nome,
     buscar_linha_por_numero,
@@ -29,6 +33,12 @@ from app.services.telefones import (
 )
 
 router = APIRouter()
+
+
+def _audit_actor(user: User) -> Tuple[Optional[int], str]:
+    audit_user_id = int(user.snipe_user_id) if user.snipe_user_id is not None else None
+    audit_username = (user.email or user.name or "").strip()
+    return audit_user_id, audit_username
 
 
 @router.get("/buscar-linha", response_model=BuscarLinhaResponse)
@@ -83,6 +93,26 @@ async def opcoes_equipes_setores(
     return listar_equipes_e_setores()
 
 
+@router.get("/link-gerenciamento", response_model=StreamlitLinkResponse)
+async def link_gerenciamento(
+    ticket_id: Optional[int] = None,
+    linha: str = "",
+    segmento: str = "",
+    equipe: str = "",
+    return_url: str = "",
+    current_user: User = Depends(get_current_technician_or_admin),
+):
+    """Gera URL do Streamlit com contexto de chamado/linha e retorno ao React."""
+    url = build_streamlit_linha_url(
+        ticket_id=ticket_id,
+        linha=linha,
+        segmento=segmento,
+        equipe=equipe,
+        return_url=return_url,
+    )
+    return StreamlitLinkResponse(url=url)
+
+
 @router.get("/buscar-linha-numero", response_model=BuscarLinhaPorNumeroResponse)
 async def buscar_linha_numero(
     numero: str = "",
@@ -132,6 +162,7 @@ async def nova_linha(
     current_user: User = Depends(get_current_technician_or_admin),
 ):
     """Cria uma nova linha do zero — para novos setores, equipes ou colaboradores sem linha cadastrada."""
+    audit_user_id, audit_username = _audit_actor(current_user)
     ok, msg = criar_nova_linha(
         numero_linha=body.numero_linha,
         nome=body.nome,
@@ -153,6 +184,8 @@ async def nova_linha(
         chip=body.chip or "",
         operadora=body.operadora or "",
         ticket_id=body.ticket_id,
+        audit_user_id=audit_user_id,
+        audit_username=audit_username,
     )
     if not ok:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
@@ -165,6 +198,7 @@ async def onboarding_linha(
     current_user: User = Depends(get_current_technician_or_admin),
 ):
     """Atribui novo colaborador a uma linha."""
+    audit_user_id, audit_username = _audit_actor(current_user)
     ok, msg = atribuir_linha(
         numero_linha=body.numero_linha,
         nome=body.nome,
@@ -177,6 +211,8 @@ async def onboarding_linha(
         email=body.email or "",
         nome_guerra=body.nome_guerra or "",
         ticket_id=body.ticket_id,
+        audit_user_id=audit_user_id,
+        audit_username=audit_username,
     )
     if not ok:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
@@ -189,6 +225,7 @@ async def manutencao_aparelho(
     current_user: User = Depends(get_current_technician_or_admin),
 ):
     """Atualiza dados do aparelho (troca por reserva). Preserva dados do colaborador."""
+    audit_user_id, audit_username = _audit_actor(current_user)
     ok, msg = atualizar_aparelho(
         linha_id=body.linha_id,
         imei_a=body.imei_a or "",
@@ -201,6 +238,8 @@ async def manutencao_aparelho(
         chip=body.chip or "",
         observacao_extra=body.observacao or "",
         ticket_id=body.ticket_id,
+        audit_user_id=audit_user_id,
+        audit_username=audit_username,
     )
     if not ok:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
@@ -217,6 +256,7 @@ async def roubo_perda_linha(
     Cenário A: mesmo número, novo aparelho.
     Cenário B: nova linha + novo aparelho (preencher nova_linha).
     """
+    audit_user_id, audit_username = _audit_actor(current_user)
     ok, msg = registrar_roubo_perda(
         linha_id=body.linha_id,
         imei_a=body.imei_a or "",
@@ -230,6 +270,8 @@ async def roubo_perda_linha(
         nova_linha=body.nova_linha or "",
         observacao_extra=body.observacao or "",
         ticket_id=body.ticket_id,
+        audit_user_id=audit_user_id,
+        audit_username=audit_username,
     )
     if not ok:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
@@ -242,6 +284,7 @@ async def transferencia_equipe(
     current_user: User = Depends(get_current_technician_or_admin),
 ):
     """Transfere colaborador de equipe. Atualiza equipe, setor, gestor e opcionalmente cargo/empresa."""
+    audit_user_id, audit_username = _audit_actor(current_user)
     ok, msg = transferir_colaborador(
         linha_id=body.linha_id,
         equipe=body.equipe,
@@ -251,6 +294,8 @@ async def transferencia_equipe(
         empresa=body.empresa or "",
         observacao_extra=body.observacao or "",
         ticket_id=body.ticket_id,
+        audit_user_id=audit_user_id,
+        audit_username=audit_username,
     )
     if not ok:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)

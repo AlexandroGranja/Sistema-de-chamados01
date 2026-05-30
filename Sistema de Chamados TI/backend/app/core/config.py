@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     # Application
     API_URL: str = "http://localhost:8000"
     FRONTEND_URL: str = "http://localhost:3000"
+    STREAMLIT_APP_URL: str = "http://localhost:8501"
     DEBUG: bool = True
     ENVIRONMENT: str = "development"
 

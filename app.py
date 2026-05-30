@@ -10,6 +10,7 @@ import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import pandas as pd
 import streamlit as st
@@ -43,6 +44,7 @@ try:
         init_db, verificar_login, criar_usuario, listar_usuarios, excluir_usuario, atualizar_senha_usuario, tem_usuarios,
         obter_usuario_por_username, obter_usuario_app_id, criar_sso_code, criar_sessao, validar_sessao, encerrar_sessao,
         registrar_auditoria, listar_auditoria,
+        resolver_referencia_chamado, preparar_referencia_chamado,
         garantir_chamado_stub, vincular_chamado_linha, registrar_chamado_evento, registrar_movimentacao_linha,
         criar_chamado, listar_chamados, obter_chamado, atualizar_status_chamado,
     )
@@ -52,6 +54,7 @@ except ImportError:
     init_db = verificar_login = criar_usuario = listar_usuarios = excluir_usuario = atualizar_senha_usuario = tem_usuarios = None
     obter_usuario_por_username = criar_sessao = validar_sessao = encerrar_sessao = None
     registrar_auditoria = listar_auditoria = None
+    resolver_referencia_chamado = preparar_referencia_chamado = None
     garantir_chamado_stub = vincular_chamado_linha = registrar_chamado_evento = registrar_movimentacao_linha = None
     criar_chamado = listar_chamados = obter_chamado = atualizar_status_chamado = None
 
@@ -1419,7 +1422,7 @@ def main() -> None:
                 return raw_qp
         return ""
 
-    chamado_qp = _qp_value("chamado_id", "id_chamado", "ticket_id", "chamado")
+    chamado_qp = _qp_value("ticket_id", "chamado_id", "id_chamado", "chamado")
     linha_ctx_qp = _qp_value("linha", "linha_telefone", "numero_linha", "phone_line")
     segmento_ctx_explicit = _qp_value("segmento_chamado", "ctx_segmento")
     equipe_ctx_explicit = _qp_value("equipe_chamado", "ctx_equipe")
@@ -1442,7 +1445,23 @@ def main() -> None:
         "equipe": equipe_ctx_qp,
         "busca": busca_ctx_qp,
         "return_url": return_url_qp,
+        "chamado_source": "",
+        "chamado_label": "",
+        "chamado_numero": "",
+        "chamado_aviso": "",
+        "chamado_legado": False,
     }
+    if chamado_qp and resolver_referencia_chamado:
+        chamado_ref = resolver_referencia_chamado(chamado_qp)
+        if chamado_ref.get("valido") and chamado_ref.get("resolved_id") is not None:
+            resolved_id = str(chamado_ref["resolved_id"])
+            st.session_state["chamado_id"] = resolved_id
+            chamado_context["chamado_id"] = resolved_id
+        chamado_context["chamado_source"] = str(chamado_ref.get("source") or "")
+        chamado_context["chamado_label"] = str(chamado_ref.get("label") or "")
+        chamado_context["chamado_numero"] = str(chamado_ref.get("numero") or "")
+        chamado_context["chamado_aviso"] = str(chamado_ref.get("aviso") or "")
+        chamado_context["chamado_legado"] = bool(chamado_ref.get("legado"))
     has_chamado_context = any(bool(v) for v in chamado_context.values())
     ctx_signature = "|".join(chamado_context.get(k, "") for k in ["chamado_id", "linha", "segmento", "equipe", "busca", "return_url"])
     segmentos_validos_ctx = ["Alimento", "Medicamento", "Promotores", "Internos", "Manutenção", "Roubo e Perda"]
@@ -1700,74 +1719,111 @@ def main() -> None:
                             "sincronizar_banco": "Sincronizar banco",
                             "login": "Login",
                             "logout": "Logout",
+                            "onboarding_linha": "Onboarding de linha",
+                            "manutencao_aparelho": "Manutenção de aparelho",
+                            "roubo_perda_linha": "Roubo/perda de linha",
+                            "transferencia_equipe": "Transferência de equipe",
+                            "desligamento_linha": "Desligamento de linha",
                         }
                         action_norm = str(action or "").strip()
                         return action_map.get(action_norm, action_norm.replace("_", " ").title())
+
+                    def _fmt_audit_val(v: Any) -> str:
+                        txt = "—" if v is None else str(v).strip()
+                        if not txt:
+                            txt = "—"
+                        return txt if len(txt) <= 36 else (txt[:33] + "...")
+
+                    def _render_alteracoes_summary(
+                        antes_ev: Any,
+                        depois_ev: Any,
+                        *,
+                        fallback_segmento: str = "—",
+                        fallback_modo: str = "—",
+                    ) -> str | None:
+                        alteracoes: list[dict[str, Any]] = []
+                        total_alteracoes = 0
+                        if isinstance(antes_ev, dict):
+                            raw_alter = antes_ev.get("alteracoes") or []
+                            if isinstance(raw_alter, list):
+                                alteracoes = raw_alter
+                            total_alteracoes = int(antes_ev.get("alteracoes_total") or 0)
+                        if not alteracoes and isinstance(depois_ev, dict):
+                            raw_alter = depois_ev.get("alteracoes") or []
+                            if isinstance(raw_alter, list):
+                                alteracoes = raw_alter
+                            total_alteracoes = int(depois_ev.get("alteracoes_total") or total_alteracoes or 0)
+
+                        if alteracoes:
+                            partes: list[str] = []
+                            for ch in alteracoes[:2]:
+                                if not isinstance(ch, dict):
+                                    continue
+                                ln = str(ch.get("linha") or "—").strip() or "—"
+                                campo = str(ch.get("campo") or "—").strip() or "—"
+                                antes_v = _fmt_audit_val(ch.get("antes"))
+                                depois_v = _fmt_audit_val(ch.get("depois"))
+                                partes.append(f"Linha {ln} | {campo}: {antes_v} -> {depois_v}")
+                            if partes:
+                                total_base = total_alteracoes if total_alteracoes > 0 else len(alteracoes)
+                                extra = max(0, total_base - len(partes))
+                                sufixo = f" (+{extra} alteração(ões))" if extra > 0 else ""
+                                return " ; ".join(partes) + sufixo
+
+                        segmento = fallback_segmento
+                        modo_ev = fallback_modo
+                        if isinstance(depois_ev, dict):
+                            segmento = str(depois_ev.get("segmento", "") or "").strip() or segmento
+                            modo_ev = str(depois_ev.get("modo", "") or "").strip() or modo_ev
+                        linhas_editadas: list[str] = []
+                        campos_alterados: list[str] = []
+                        if isinstance(antes_ev, dict):
+                            linhas_editadas = antes_ev.get("linhas_editadas") or []
+                            campos_alterados = antes_ev.get("campos_alterados") or []
+                        if not campos_alterados and isinstance(depois_ev, dict):
+                            campos_alterados = depois_ev.get("campos_alterados") or []
+                        qtd_linhas = len(linhas_editadas) if isinstance(linhas_editadas, list) else 0
+                        campos_validos = [str(c).strip() for c in campos_alterados if str(c).strip()]
+                        if not campos_validos and qtd_linhas == 0:
+                            return None
+                        campos_preview = ", ".join(campos_validos[:3])
+                        if len(campos_validos) > 3:
+                            campos_preview += f" +{len(campos_validos) - 3}"
+                        if qtd_linhas == 1 and isinstance(linhas_editadas, list) and linhas_editadas:
+                            alvo = f"linha {str(linhas_editadas[0]).strip()}"
+                        else:
+                            alvo = f"{qtd_linhas} linha(s)"
+                        if campos_preview:
+                            return f"Alterou {alvo} em {segmento} ({modo_ev}) | Campos: {campos_preview}"
+                        return f"Alterou {alvo} em {segmento} ({modo_ev})"
 
                     def _build_what_edited(row: pd.Series) -> str:
                         acao_ev = str(row.get("acao", "") or "").strip()
                         antes_ev = _parse_json_safe(row.get("antes_json"))
                         depois_ev = _parse_json_safe(row.get("depois_json"))
                         detalhes_ev = str(row.get("detalhes", "") or "").strip()
-                        chave_ev = str(row.get("chave_registro", "") or "").strip()
+                        chave_ev = str(row.get("chave_registro", "") or row.get("entidade_id", "") or "").strip()
+
+                        alteracoes_resumo = _render_alteracoes_summary(antes_ev, depois_ev)
+                        if alteracoes_resumo and acao_ev in {
+                            "salvar_edicoes",
+                            "onboarding_linha",
+                            "manutencao_aparelho",
+                            "roubo_perda_linha",
+                            "transferencia_equipe",
+                            "desligamento_linha",
+                        }:
+                            return alteracoes_resumo
 
                         if acao_ev == "salvar_edicoes" and isinstance(depois_ev, dict):
-                            alteracoes: list[dict[str, Any]] = []
-                            total_alteracoes = 0
-                            if isinstance(antes_ev, dict):
-                                raw_alter = antes_ev.get("alteracoes") or []
-                                if isinstance(raw_alter, list):
-                                    alteracoes = raw_alter
-                                total_alteracoes = int(antes_ev.get("alteracoes_total") or 0)
-                            if not alteracoes and isinstance(depois_ev, dict):
-                                raw_alter = depois_ev.get("alteracoes") or []
-                                if isinstance(raw_alter, list):
-                                    alteracoes = raw_alter
-                                total_alteracoes = int(depois_ev.get("alteracoes_total") or total_alteracoes or 0)
-
-                            def _fmt_val(v: Any) -> str:
-                                txt = "—" if v is None else str(v).strip()
-                                if not txt:
-                                    txt = "—"
-                                return txt if len(txt) <= 36 else (txt[:33] + "...")
-
-                            if alteracoes:
-                                partes: list[str] = []
-                                for ch in alteracoes[:2]:
-                                    if not isinstance(ch, dict):
-                                        continue
-                                    ln = str(ch.get("linha") or "—").strip() or "—"
-                                    campo = str(ch.get("campo") or "—").strip() or "—"
-                                    antes_v = _fmt_val(ch.get("antes"))
-                                    depois_v = _fmt_val(ch.get("depois"))
-                                    partes.append(f"Linha {ln} | {campo}: {antes_v} -> {depois_v}")
-                                if partes:
-                                    total_base = total_alteracoes if total_alteracoes > 0 else len(alteracoes)
-                                    extra = max(0, total_base - len(partes))
-                                    sufixo = f" (+{extra} alteração(ões))" if extra > 0 else ""
-                                    return " ; ".join(partes) + sufixo
-
-                            segmento = str(depois_ev.get("segmento", "") or "").strip() or "—"
-                            modo_ev = str(depois_ev.get("modo", "") or "").strip() or "—"
-                            linhas_editadas: list[str] = []
-                            campos_alterados: list[str] = []
-                            if isinstance(antes_ev, dict):
-                                linhas_editadas = antes_ev.get("linhas_editadas") or []
-                                campos_alterados = antes_ev.get("campos_alterados") or []
-                            if not campos_alterados and isinstance(depois_ev, dict):
-                                campos_alterados = depois_ev.get("campos_alterados") or []
-                            qtd_linhas = len(linhas_editadas) if isinstance(linhas_editadas, list) else 0
-                            campos_validos = [str(c).strip() for c in campos_alterados if str(c).strip()]
-                            campos_preview = ", ".join(campos_validos[:3])
-                            if len(campos_validos) > 3:
-                                campos_preview += f" +{len(campos_validos) - 3}"
-                            if qtd_linhas == 1 and isinstance(linhas_editadas, list) and linhas_editadas:
-                                alvo = f"linha {str(linhas_editadas[0]).strip()}"
-                            else:
-                                alvo = f"{qtd_linhas} linha(s)"
-                            if campos_preview:
-                                return f"Alterou {alvo} em {segmento} ({modo_ev}) | Campos: {campos_preview}"
-                            return f"Alterou {alvo} em {segmento} ({modo_ev})"
+                            resumo = _render_alteracoes_summary(
+                                antes_ev,
+                                depois_ev,
+                                fallback_segmento=str(depois_ev.get("segmento", "") or "").strip() or "—",
+                                fallback_modo=str(depois_ev.get("modo", "") or "").strip() or "—",
+                            )
+                            if resumo:
+                                return resumo
                         if acao_ev == "criar_linha":
                             return f"Criou a linha {chave_ev or '—'}"
                         if acao_ev == "excluir_linha":
@@ -1789,6 +1845,22 @@ def main() -> None:
                             return f"Alterou a linha {chave_ev or '—'} para {modo_dest or '—'}"
                         if acao_ev == "enviar_manutencao":
                             return f"Enviou para manutenção: {chave_ev or '—'}"
+                        if acao_ev == "onboarding_linha":
+                            nome_dest = ""
+                            if isinstance(depois_ev, dict):
+                                nome_dest = str(depois_ev.get("nome") or depois_ev.get("nome_usuario_snapshot") or "").strip()
+                            return f"Atribuiu linha {chave_ev or '—'}" + (f" a {nome_dest}" if nome_dest else "")
+                        if acao_ev == "manutencao_aparelho":
+                            return f"Atualizou aparelho da linha {chave_ev or '—'}"
+                        if acao_ev == "roubo_perda_linha":
+                            return f"Registrou roubo/perda na linha {chave_ev or '—'}"
+                        if acao_ev == "transferencia_equipe":
+                            eq_dest = ""
+                            if isinstance(depois_ev, dict):
+                                eq_dest = str(depois_ev.get("equipe") or depois_ev.get("equipe_padrao") or "").strip()
+                            return f"Transferiu linha {chave_ev or '—'}" + (f" para equipe {eq_dest}" if eq_dest else "")
+                        if acao_ev == "desligamento_linha":
+                            return f"Desligamento — linha {chave_ev or '—'}"
                         if acao_ev in ("sincronizar_banco", "login", "logout"):
                             return f"{_friendly_action_name(acao_ev)}"
 
@@ -1823,6 +1895,11 @@ def main() -> None:
                         "mover_setor",
                         "mudar_modo_linha",
                         "enviar_manutencao",
+                        "onboarding_linha",
+                        "manutencao_aparelho",
+                        "roubo_perda_linha",
+                        "transferencia_equipe",
+                        "desligamento_linha",
                     }
                     if "acao" in df_logs.columns:
                         df_logs = df_logs[df_logs["acao"].isin(acoes_edicao)]
@@ -2154,6 +2231,14 @@ def main() -> None:
                             if sso_code
                             else chamados_app_url
                         )
+                        chamado_id_sso = str(
+                            st.session_state.get("chamado_id")
+                            or (st.session_state.get("chamado_context") or {}).get("chamado_id")
+                            or ""
+                        ).strip()
+                        if sso_code and chamado_id_sso:
+                            redirect_path = quote(f"/tickets?ticket_id={chamado_id_sso}", safe="")
+                            url = f"{url}&redirect={redirect_path}"
                         st.session_state["_sso_redirect_url"] = url
                         st.rerun()
                     else:
@@ -2201,10 +2286,18 @@ def main() -> None:
         return
 
     active_chamado_context = st.session_state.get("chamado_context", {}) or {}
-    if any(bool(v) for v in active_chamado_context.values()):
+    if any(bool(v) for k, v in active_chamado_context.items() if k not in {"chamado_source", "chamado_label", "chamado_numero", "chamado_aviso", "chamado_legado"}):
         contexto_partes: list[str] = []
-        if active_chamado_context.get("chamado_id"):
-            contexto_partes.append(f"**Chamado:** {active_chamado_context['chamado_id']}")
+        chamado_id_ctx = str(active_chamado_context.get("chamado_id") or "").strip()
+        chamado_source_ctx = str(active_chamado_context.get("chamado_source") or "").strip()
+        chamado_label_ctx = str(active_chamado_context.get("chamado_label") or "").strip()
+        if chamado_id_ctx:
+            if chamado_source_ctx == "tickets":
+                rotulo = chamado_label_ctx or f"Ticket #{chamado_id_ctx}"
+                contexto_partes.append(f"**Ticket (Chamados):** {rotulo} (id `{chamado_id_ctx}`)")
+            else:
+                rotulo = chamado_label_ctx or f"Chamado #{chamado_id_ctx}"
+                contexto_partes.append(f"**Chamado:** {rotulo} (id `{chamado_id_ctx}`)")
         if active_chamado_context.get("linha"):
             contexto_partes.append(f"**Linha alvo:** {active_chamado_context['linha']}")
         if active_chamado_context.get("segmento"):
@@ -2213,8 +2306,20 @@ def main() -> None:
             contexto_partes.append(f"**Equipe:** {active_chamado_context['equipe']}")
         contexto_partes.append(f"**Usuário:** {st.session_state.get('user', {}).get('username', '—')}")
         st.info("Contexto de chamado ativo. Filtros aplicados automaticamente.  \n" + " | ".join(contexto_partes))
-        if active_chamado_context.get("return_url"):
-            st.link_button("Voltar para o chamado", url=str(active_chamado_context["return_url"]), use_container_width=False)
+        chamado_aviso_ctx = str(active_chamado_context.get("chamado_aviso") or "").strip()
+        if chamado_aviso_ctx:
+            st.warning(chamado_aviso_ctx)
+        link_cols = st.columns([1, 1])
+        with link_cols[0]:
+            if active_chamado_context.get("return_url"):
+                st.link_button("Voltar para o chamado", url=str(active_chamado_context["return_url"]), use_container_width=False)
+        with link_cols[1]:
+            if chamado_source_ctx == "tickets" and chamados_app_url and chamado_id_ctx:
+                ticket_url = f"{chamados_app_url.rstrip('/')}/tickets?ticket_id={chamado_id_ctx}"
+                st.link_button("Abrir ticket no Chamados", url=ticket_url, use_container_width=False)
+            elif chamados_app_url and chamado_id_ctx:
+                ticket_url = f"{chamados_app_url.rstrip('/')}/tickets?ticket_id={chamado_id_ctx}"
+                st.link_button("Abrir chamado no Chamados", url=ticket_url, use_container_width=False)
 
     post_conflict_feedback = st.session_state.get("_post_conflict_feedback") or {}
     if post_conflict_feedback:
@@ -2260,14 +2365,16 @@ def main() -> None:
         st.error("O banco de dados esta vazio ou nao possui dados para este modo. O sistema nao usa mais planilhas como fonte.")
         st.stop()
 
-    # Unificacao progressiva com chamados:
-    # quando `chamado_id` vem via URL, garantimos que existe um registro mínimo no backend.
-    # Isso evita problemas futuros ao evoluir para `chamado_eventos/movimentacoes`.
-    if dados_do_banco and active_chamado_context.get("chamado_id"):
+    # Fase B1: resolve tickets.id (React) ou chamados legado; stub só quando necessário.
+    if dados_do_banco and active_chamado_context.get("chamado_id") and preparar_referencia_chamado:
         try:
-            garantir_chamado_stub(active_chamado_context.get("chamado_id"))
-            if active_chamado_context.get("linha"):
-                vincular_chamado_linha(active_chamado_context.get("chamado_id"), active_chamado_context.get("linha"))
+            chamado_ref_prep = preparar_referencia_chamado(str(active_chamado_context.get("chamado_id")))
+            if chamado_ref_prep.get("valido"):
+                active_chamado_context["chamado_source"] = str(chamado_ref_prep.get("source") or "")
+                active_chamado_context["chamado_label"] = str(chamado_ref_prep.get("label") or "")
+                active_chamado_context["chamado_aviso"] = str(chamado_ref_prep.get("aviso") or "")
+                if chamado_ref_prep.get("source") == "chamados" and active_chamado_context.get("linha"):
+                    vincular_chamado_linha(active_chamado_context.get("chamado_id"), active_chamado_context.get("linha"))
         except Exception:
             pass
 

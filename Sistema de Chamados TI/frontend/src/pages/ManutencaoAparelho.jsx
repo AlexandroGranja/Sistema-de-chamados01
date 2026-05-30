@@ -6,11 +6,15 @@ import {
 } from '@mui/material'
 import BuildIcon from '@mui/icons-material/Build'
 import LinhaSearch from '../components/LinhaSearch'
+import EditarNoGerenciamentoButton from '../components/EditarNoGerenciamentoButton'
+import { useTicketContext } from '../hooks/useTicketContext'
 import { telefonesAPI } from '../services/api'
 import toast from 'react-hot-toast'
 
 const ManutencaoAparelho = () => {
+  const { ticketId } = useTicketContext()
   const [linhaId, setLinhaId] = useState(null)
+  const [linhaPreview, setLinhaPreview] = useState(null)
   const [form, setForm] = useState({
     imei_a: '', imei_b: '', marca: '', modelo: '',
     aparelho: '', numero_serie: '', ativo: '', chip: '', observacao: '',
@@ -28,7 +32,7 @@ const ManutencaoAparelho = () => {
     }
     setSubmitting(true)
     try {
-      const data = await telefonesAPI.manutencao({ ...form, linha_id: linhaId })
+      const data = await telefonesAPI.manutencao({ ...form, linha_id: linhaId, ticket_id: ticketId || undefined })
       setResultado({ sucesso: true, mensagem: data.mensagem })
       toast.success('Aparelho atualizado com sucesso!')
     } catch (err) {
@@ -55,6 +59,7 @@ const ManutencaoAparelho = () => {
         <LinhaSearch
           onLinhaFound={(l) => {
             setLinhaId(l.id)
+            setLinhaPreview(l)
             setForm((prev) => ({
               ...prev,
               imei_a: l.imei_a || '',
@@ -69,9 +74,19 @@ const ManutencaoAparelho = () => {
           }}
           onLinhaClear={() => {
             setLinhaId(null)
+            setLinhaPreview(null)
             setForm({ imei_a: '', imei_b: '', marca: '', modelo: '', aparelho: '', numero_serie: '', ativo: '', chip: '', observacao: '' })
           }}
         />
+
+        {linhaPreview && (
+          <Box sx={{ mt: 2 }}>
+            <EditarNoGerenciamentoButton
+              linha={linhaPreview.linha || ''}
+              equipe={linhaPreview.equipe || ''}
+            />
+          </Box>
+        )}
 
         <Divider sx={{ my: 3 }} />
         <Typography variant="subtitle1" fontWeight={600} gutterBottom>

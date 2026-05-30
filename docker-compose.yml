@@ -1,0 +1,24 @@
+# PostgreSQL local para o monorepo Gerenciamento + Chamados
+# Uso: docker compose up -d
+# .env: DATABASE_URL=postgresql://telefones:telefones@localhost:5432/gerenciamento_telefones
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gerenciamento_telefones_pg
+    environment:
+      POSTGRES_USER: telefones
+      POSTGRES_PASSWORD: telefones
+      POSTGRES_DB: gerenciamento_telefones
+    ports:
+      - "5432:5432"
+    volumes:
+      - gerenciamento_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telefones -d gerenciamento_telefones"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  gerenciamento_pg_data:

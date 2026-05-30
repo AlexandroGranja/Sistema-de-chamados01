@@ -682,6 +682,8 @@ async def create_offboarding_ticket(
                 maintenance_reason=payload.maintenance_reason or "",
                 return_date=(payload.return_date.isoformat() if payload.return_date else ""),
                 ticket_id=ticket_id,
+                audit_user_id=user_app_id,
+                audit_username=(current_user.email or current_user.name or "").strip(),
             )
 
         metadata["telefones_sync_ok"] = sync_ok
@@ -747,6 +749,8 @@ async def create_offboarding_ticket(
         maintenance_reason=payload.maintenance_reason or "",
         return_date=(payload.return_date.isoformat() if payload.return_date else ""),
         ticket_id=ticket.id,
+        audit_user_id=_effective_user_app_id(current_user),
+        audit_username=(current_user.email or current_user.name or "").strip(),
     )
     metadata["telefones_sync_ok"] = sync_ok
     metadata["telefones_sync_message"] = sync_message
@@ -876,6 +880,8 @@ async def update_ticket_status(
                             maintenance_reason=metadata.get("maintenance_reason") or "",
                             return_date=metadata.get("return_date") or "",
                             ticket_id=int(row.get("id") or ticket_id),
+                            audit_user_id=_effective_user_app_id(current_user),
+                            audit_username=(current_user.email or current_user.name or "").strip(),
                         )
         except Exception:
             # Não quebrar fechamento do ticket por falha na sincronização.

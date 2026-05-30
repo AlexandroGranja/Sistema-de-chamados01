@@ -31,6 +31,8 @@ import {
 } from '@mui/material'
 import { useAuth } from '../contexts/AuthContext'
 import { usersAPI, desligamentoAPI, ticketsAPI } from '../services/api'
+import EditarNoGerenciamentoButton from '../components/EditarNoGerenciamentoButton'
+import { useTicketContext } from '../hooks/useTicketContext'
 import toast from 'react-hot-toast'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import BuildIcon from '@mui/icons-material/Build'
@@ -108,6 +110,7 @@ const getOffboardingReason = (ticket) => {
 
 const Desligamento = () => {
   const { user } = useAuth()
+  const { ticketId } = useTicketContext()
   const [snipeConfigured, setSnipeConfigured] = useState(true)
   const [loading, setLoading] = useState(true)
   const [loadingAssets, setLoadingAssets] = useState(false)
@@ -140,6 +143,7 @@ const Desligamento = () => {
   const [closeNote, setCloseNote] = useState('')
   const [prefillLoading, setPrefillLoading] = useState(false)
   const [prefillInfo, setPrefillInfo] = useState('')
+  const [prefillLine, setPrefillLine] = useState('')
 
   const loadOpenOffboardingTickets = async () => {
     setLoadingOpenOffboardingTickets(true)
@@ -247,6 +251,7 @@ const Desligamento = () => {
 
     if (employeeName.length < 4) {
       setPrefillInfo('')
+      setPrefillLine('')
       setPrefillLoading(false)
       return () => { cancelled = true }
     }
@@ -261,6 +266,7 @@ const Desligamento = () => {
           const data = res.data
           setTicketUserDepartment(data.user_department || '')
           setTicketAssetTag(data.asset_tag || '')
+          setPrefillLine(data.line || '')
           const prefillModel = String(data.device_model || '').trim()
           if (prefillModel) {
             const matchedModel = DEVICE_MODELS.find(
@@ -447,6 +453,15 @@ const Desligamento = () => {
           onChange={(e) => setTicketEmployeeName(e.target.value)}
           helperText={prefillLoading ? 'Buscando dados automáticos...' : prefillInfo}
         />
+        {(prefillLine || ticketId) && (
+          <Box sx={{ mb: 2 }}>
+            <EditarNoGerenciamentoButton
+              linha={prefillLine}
+              equipe={ticketUserDepartment}
+              ticketId={ticketId}
+            />
+          </Box>
+        )}
         <TextField
           fullWidth
           sx={{ mb: 2 }}

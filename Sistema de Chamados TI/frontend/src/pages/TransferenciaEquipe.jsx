@@ -6,11 +6,15 @@ import {
 } from '@mui/material'
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
 import LinhaSearch from '../components/LinhaSearch'
+import EditarNoGerenciamentoButton from '../components/EditarNoGerenciamentoButton'
+import { useTicketContext } from '../hooks/useTicketContext'
 import { telefonesAPI } from '../services/api'
 import toast from 'react-hot-toast'
 
 const TransferenciaEquipe = () => {
+  const { ticketId } = useTicketContext()
   const [linhaId, setLinhaId] = useState(null)
+  const [linhaPreview, setLinhaPreview] = useState(null)
   const [isPromocao, setIsPromocao] = useState(false)
   const [form, setForm] = useState({
     equipe: '', setor: '', gestor: '', cargo: '', empresa: '', observacao: '',
@@ -36,6 +40,7 @@ const TransferenciaEquipe = () => {
         ...form,
         linha_id: linhaId,
         cargo: isPromocao ? form.cargo : '',
+        ticket_id: ticketId || undefined,
       }
       const data = await telefonesAPI.transferencia(payload)
       setResultado({ sucesso: true, mensagem: data.mensagem })
@@ -64,6 +69,7 @@ const TransferenciaEquipe = () => {
         <LinhaSearch
           onLinhaFound={(l) => {
             setLinhaId(l.id)
+            setLinhaPreview(l)
             setForm((prev) => ({
               ...prev,
               equipe: l.equipe || '',
@@ -74,9 +80,19 @@ const TransferenciaEquipe = () => {
           }}
           onLinhaClear={() => {
             setLinhaId(null)
+            setLinhaPreview(null)
             setForm({ equipe: '', setor: '', gestor: '', cargo: '', empresa: '', observacao: '' })
           }}
         />
+
+        {linhaPreview && (
+          <Box sx={{ mt: 2 }}>
+            <EditarNoGerenciamentoButton
+              linha={linhaPreview.linha || ''}
+              equipe={linhaPreview.equipe || ''}
+            />
+          </Box>
+        )}
 
         <Divider sx={{ my: 3 }} />
         <Typography variant="subtitle1" fontWeight={600} gutterBottom>Nova Equipe</Typography>

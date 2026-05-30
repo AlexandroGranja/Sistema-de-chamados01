@@ -237,7 +237,7 @@ CREATE INDEX IF NOT EXISTS idx_chamado_eventos_tipo ON chamado_eventos(tipo_even
 CREATE TABLE IF NOT EXISTS movimentacoes_linha (
     id BIGSERIAL PRIMARY KEY,
     linha_id BIGINT NOT NULL REFERENCES linhas(id) ON DELETE CASCADE,
-    chamado_id BIGINT REFERENCES chamados(id),
+    chamado_id BIGINT,
     tipo_movimentacao VARCHAR(100) NOT NULL,
     de_status VARCHAR(50),
     para_status VARCHAR(50),
@@ -261,7 +261,8 @@ CREATE TABLE IF NOT EXISTS auditoria (
     acao VARCHAR(100) NOT NULL,
     entidade VARCHAR(100) NOT NULL,
     entidade_id VARCHAR(100),
-    chamado_id BIGINT REFERENCES chamados(id),
+    -- Fase B1: referencia tickets.id (React); legado chamados.id sem FK rígida
+    chamado_id BIGINT,
     linha_id BIGINT REFERENCES linhas(id),
     antes_json JSONB,
     depois_json JSONB,

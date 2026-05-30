@@ -12,6 +12,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid'
 import GroupsIcon from '@mui/icons-material/Groups'
 import { telefonesAPI } from '../services/api'
+import EditarNoGerenciamentoButton from '../components/EditarNoGerenciamentoButton'
+import { useTicketContext } from '../hooks/useTicketContext'
 import toast from 'react-hot-toast'
 
 // Autocomplete que permite selecionar opção existente ou digitar valor novo
@@ -53,6 +55,7 @@ const useOpcoes = () => {
 // ── Modo A: Linha existente ──────────────────────────────────────────────────
 
 const LinhaExistente = ({ opcoes }) => {
+  const { ticketId } = useTicketContext()
   const [numeroLinha, setNumeroLinha] = useState('')
   const [buscando, setBuscando] = useState(false)
   const [linhaDados, setLinhaDados] = useState(null)
@@ -109,6 +112,7 @@ const LinhaExistente = ({ opcoes }) => {
         gestor: linhaDados?.gestor || '',
         setor: linhaDados?.setor || '',
         empresa: linhaDados?.empresa || '',
+        ticket_id: ticketId || undefined,
       })
       setResultado({ sucesso: true, mensagem: data.mensagem })
       toast.success('Usuário cadastrado na linha com sucesso!')
@@ -154,6 +158,15 @@ const LinhaExistente = ({ opcoes }) => {
           </Button>
         )}
       </Box>
+
+      {linhaDados && (
+        <Box sx={{ mb: 2 }}>
+          <EditarNoGerenciamentoButton
+            linha={numeroLinha.trim() || linhaDados?.linha || ''}
+            equipe={linhaDados?.equipe || ''}
+          />
+        </Box>
+      )}
 
       {linhaDados && (
         <Box sx={{
@@ -241,6 +254,7 @@ const EMPTY_NOVA = {
 }
 
 const NovaLinha = ({ opcoes }) => {
+  const { ticketId } = useTicketContext()
   const [form, setForm] = useState(EMPTY_NOVA)
   const [mostrarAparelho, setMostrarAparelho] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -255,7 +269,7 @@ const NovaLinha = ({ opcoes }) => {
     if (!form.codigo.trim()) { toast.error('Código / matrícula é obrigatório.'); return }
     setSubmitting(true)
     try {
-      const data = await telefonesAPI.novaLinha(form)
+      const data = await telefonesAPI.novaLinha({ ...form, ticket_id: ticketId || undefined })
       setResultado({ sucesso: true, mensagem: data.mensagem })
       toast.success('Linha criada com sucesso!')
       setForm(EMPTY_NOVA)
@@ -273,6 +287,14 @@ const NovaLinha = ({ opcoes }) => {
     <>
       {/* Linha e colaborador */}
       <Typography variant="subtitle1" fontWeight={600} gutterBottom>Linha e Colaborador</Typography>
+      {form.numero_linha.trim() && (
+        <Box sx={{ mb: 2 }}>
+          <EditarNoGerenciamentoButton
+            linha={form.numero_linha.trim()}
+            equipe={form.equipe || ''}
+          />
+        </Box>
+      )}
       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 3 }}>
         <TextField
           required label="Número da Linha" value={form.numero_linha}
@@ -368,6 +390,7 @@ const NovaLinha = ({ opcoes }) => {
 
 const NovoUsuario = () => {
   const [modo, setModo] = useState('existente')
+  const { ticketIdRaw } = useTicketContext()
   const opcoes = useOpcoes()
 
   return (
@@ -376,9 +399,14 @@ const NovoUsuario = () => {
         <PersonAddIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
         Novo Usuário
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
         Atribua um colaborador a uma linha existente ou crie uma nova linha do zero.
       </Typography>
+      {ticketIdRaw ? (
+        <Typography variant="caption" color="primary" display="block" sx={{ mb: 2 }}>
+          Contexto do chamado #{ticketIdRaw} — alterações serão vinculadas à auditoria.
+        </Typography>
+      ) : null}
 
       <Paper sx={{ p: 3 }}>
         <ToggleButtonGroup
