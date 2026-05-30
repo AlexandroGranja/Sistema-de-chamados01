@@ -167,7 +167,9 @@ B1 e B3 são bloqueantes para confiança operacional; B2 melhora UX.
 - `load_linhas()` usa API quando flag + JWT após login; fallback SQL
 - Teste: `python -m scripts.test_c1_linhas_api <senha>`
 
-**Próximo (C1-B):** migrar gravação (`save_linhas` / manutenção) para API.
+**Próximo (C1-B):** ~~migrar gravação (`save_linhas` / manutenção) para API.~~ **Feito:** `POST /linhas/salvar-lote` + `save_linhas()` via API com flag.
+
+**Pendente C1:** auditoria de bulk save via API; migrar fluxos pontuais restantes.
 
 **Risco:** regressão em edição em massa. Mitigação: flag + testes manuais por segmento.
 

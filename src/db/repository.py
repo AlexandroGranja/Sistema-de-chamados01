@@ -618,6 +618,15 @@ def save_linhas(df: pd.DataFrame, modo: str = "ativas", db_path: Optional[Path] 
     por `numero_linha` e, quando necessário, deletamos apenas linhas que não
     vieram no DataFrame e que não estejam referenciadas por chamados.
     """
+    try:
+        from src.core.config import use_telefones_api
+        from src.services.telefones_api_client import get_api_token, is_enabled, save_linhas_via_api
+
+        if is_enabled() and use_telefones_api() and get_api_token():
+            return save_linhas_via_api(df, modo)
+    except Exception:
+        pass
+
     conn = get_connection(db_path)
     try:
         available = [c for c in LEGACY_COL_MAP if c in df.columns]

@@ -1755,7 +1755,10 @@ def main() -> None:
 
                 if use_telefones_api() and is_enabled():
                     if get_api_token():
-                        st.info("Modo C1: leitura de linhas via API Chamados (token ativo). Gravação ainda local.")
+                        st.info(
+                            "Modo C1: leitura e gravação de linhas via API Chamados (token ativo). "
+                            "Auditoria local do Streamlit continua ativa."
+                        )
                     else:
                         st.warning(
                             "USE_TELEFONES_API=true, mas sem token JWT — grid usa SQL direto "

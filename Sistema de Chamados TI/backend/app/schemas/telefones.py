@@ -143,3 +143,15 @@ class ListarLinhasResponse(BaseModel):
     modo: str
     total: int
     rows: list[dict]
+
+
+class SalvarLinhasRequest(BaseModel):
+    modo: str = "ativas"
+    rows: list[dict]
+    ticket_id: Optional[int] = None
+
+
+class SalvarLinhasResponse(BaseModel):
+    sucesso: bool
+    mensagem: str
+    total: int

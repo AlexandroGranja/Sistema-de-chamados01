@@ -20,6 +20,8 @@ from app.schemas.telefones import (
     TelefonesActionResponse,
     StreamlitLinkResponse,
     ListarLinhasResponse,
+    SalvarLinhasRequest,
+    SalvarLinhasResponse,
 )
 from app.services.streamlit_links import build_streamlit_linha_url
 from app.services.telefones import (
@@ -27,6 +29,7 @@ from app.services.telefones import (
     buscar_linha_por_numero,
     listar_equipes_e_setores,
     listar_linhas_grid,
+    salvar_linhas_grid,
     criar_nova_linha,
     atribuir_linha,
     atualizar_aparelho,
@@ -109,6 +112,37 @@ async def listar_linhas(
         )
     rows = listar_linhas_grid(modo=modo_norm)
     return ListarLinhasResponse(modo=modo_norm, total=len(rows), rows=rows)
+
+
+@router.post("/linhas/salvar-lote", response_model=SalvarLinhasResponse)
+async def salvar_linhas_lote(
+    body: SalvarLinhasRequest,
+    current_user: User = Depends(get_current_technician_or_admin),
+):
+    """Salva lote de linhas do grid Streamlit (UPSERT por numero_linha)."""
+    modo_norm = (body.modo or "ativas").strip().lower()
+    if modo_norm not in {"ativas", "desativadas"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="modo deve ser 'ativas' ou 'desativadas'.",
+        )
+    if not body.rows:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Informe ao menos uma linha em rows.",
+        )
+    try:
+        total = salvar_linhas_grid(rows=body.rows, modo=modo_norm)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Falha ao salvar linhas: {exc}",
+        ) from exc
+    return SalvarLinhasResponse(
+        sucesso=True,
+        mensagem=f"{total} linha(s) persistida(s).",
+        total=total,
+    )
 
 
 @router.get("/link-gerenciamento", response_model=StreamlitLinkResponse)

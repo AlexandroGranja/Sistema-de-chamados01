@@ -72,3 +72,19 @@ def load_linhas_via_api(modo: str = "ativas", *, timeout: float = 60.0) -> pd.Da
     if not rows:
         return pd.DataFrame()
     return pd.DataFrame(rows)
+
+
+def save_linhas_via_api(df: pd.DataFrame, modo: str = "ativas", *, timeout: float = 120.0) -> int:
+    """Persiste grid via POST /api/telefones/linhas/salvar-lote."""
+    base = get_chamados_api_url()
+    rows = df.where(pd.notna(df), None).to_dict(orient="records")
+    resp = requests.post(
+        f"{base}/api/telefones/linhas/salvar-lote",
+        json={"modo": modo, "rows": rows},
+        headers=_headers(),
+        timeout=timeout,
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(f"API salvar-lote HTTP {resp.status_code}: {resp.text[:300]}")
+    payload = resp.json() or {}
+    return int(payload.get("total") or 0)

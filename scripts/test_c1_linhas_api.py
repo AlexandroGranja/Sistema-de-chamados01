@@ -32,6 +32,7 @@ def main() -> int:
     token = login.json().get("access_token")
     headers = {"Authorization": f"Bearer {token}"}
 
+    ativas_data = None
     for modo in ("ativas", "desativadas"):
         r = requests.get(
             f"{API}/api/telefones/linhas",
@@ -43,10 +44,25 @@ def main() -> int:
             print(f"GET /linhas?modo={modo} FAIL ({r.status_code}): {r.text[:300]}")
             return 1
         data = r.json()
+        if modo == "ativas":
+            ativas_data = data
         total = data.get("total", 0)
         sample = (data.get("rows") or [{}])[0]
         keys = [k.encode("ascii", "replace").decode("ascii") for k in list(sample.keys())[:5]]
         print(f"modo={modo} total={total} sample_keys={keys}")
+
+    if ativas_data and ativas_data.get("rows"):
+        one = ativas_data["rows"][0]
+        wr = requests.post(
+            f"{API}/api/telefones/linhas/salvar-lote",
+            json={"modo": "ativas", "rows": [one]},
+            headers=headers,
+            timeout=60,
+        )
+        if wr.status_code != 200:
+            print(f"POST salvar-lote FAIL ({wr.status_code}): {wr.text[:300]}")
+            return 1
+        print(f"salvar-lote total={wr.json().get('total')}")
 
     print("C1 linhas API PASS")
     return 0

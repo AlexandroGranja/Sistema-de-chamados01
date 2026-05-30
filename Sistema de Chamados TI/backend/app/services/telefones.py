@@ -1,7 +1,7 @@
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 import logging
 import unicodedata
 import os
@@ -10,7 +10,7 @@ from app.schemas.ticket import OffboardingAction
 from app.core.config import settings
 from app.core.database import engine
 from app.services.auditoria import audit_linha_create, audit_linha_update, fetch_linha_snapshot
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 logger = logging.getLogger(__name__)
 
@@ -1197,6 +1197,111 @@ def listar_linhas_grid(*, modo: str = "ativas") -> list[dict]:
                 item[legacy_key] = "" if val is None else val
         rows.append(item)
     return rows
+
+
+def _normalize_grid_value(value) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, float):
+        try:
+            import math
+
+            if math.isnan(value):
+                return None
+        except Exception:
+            pass
+    if isinstance(value, (dict, list, bool, int)):
+        return value
+    text = str(value).strip()
+    return text if text else None
+
+
+def salvar_linhas_grid(
+    *,
+    rows: list[dict],
+    modo: str = "ativas",
+) -> int:
+    """
+    Persiste lote de linhas (chaves legadas) — espelha save_linhas do Streamlit/repository.
+    """
+    modo_norm = (modo or "ativas").strip().lower()
+    if modo_norm not in {"ativas", "desativadas"}:
+        modo_norm = "ativas"
+
+    records: list[dict] = []
+    for legacy_row in rows or []:
+        rec: dict = {}
+        for legacy_key, db_col in LINHAS_GRID_LEGACY_MAP.items():
+            if legacy_key in legacy_row:
+                rec[db_col] = _normalize_grid_value(legacy_row.get(legacy_key))
+        if rec.get("ordem_manual") not in (None, ""):
+            try:
+                rec["ordem_manual"] = int(float(str(rec.get("ordem_manual")).strip()))
+            except Exception:
+                rec["ordem_manual"] = None
+        rec["modo"] = modo_norm
+        rec["modo_operacao"] = modo_norm
+        rec["numero_linha"] = rec.get("linha")
+        rec["codigo_usuario_snapshot"] = rec.get("codigo")
+        rec["nome_usuario_snapshot"] = rec.get("nome")
+        rec["email_snapshot"] = rec.get("email")
+        if rec.get("numero_linha") in (None, ""):
+            continue
+        records.append(rec)
+
+    try:
+        with engine.begin() as conn:
+            if records:
+                insert_cols = sorted({k for rec in records for k in rec.keys()})
+                placeholders = ", ".join([f":{c}" for c in insert_cols])
+                columns_sql = ", ".join(insert_cols)
+                update_cols = [c for c in insert_cols if c != "numero_linha"]
+                update_set_sql = ", ".join([f"{c} = EXCLUDED.{c}" for c in update_cols])
+                for rec in records:
+                    conn.execute(
+                        text(
+                            f"""
+                            INSERT INTO linhas ({columns_sql})
+                            VALUES ({placeholders})
+                            ON CONFLICT (numero_linha) DO UPDATE SET {update_set_sql}
+                            """
+                        ),
+                        rec,
+                    )
+
+            keys = [r.get("numero_linha") for r in records if r.get("numero_linha") not in (None, "")]
+            if keys:
+                delete_sql = text(
+                    """
+                    DELETE FROM linhas l
+                    WHERE COALESCE(l.modo, l.modo_operacao) = :modo
+                      AND l.numero_linha NOT IN :keys
+                      AND NOT EXISTS (
+                        SELECT 1 FROM chamados c
+                        WHERE c.linha_id = l.id
+                      )
+                    """
+                ).bindparams(bindparam("keys", expanding=True))
+                conn.execute(delete_sql, {"modo": modo_norm, "keys": keys})
+            else:
+                conn.execute(
+                    text(
+                        """
+                        DELETE FROM linhas l
+                        WHERE COALESCE(l.modo, l.modo_operacao) = :modo
+                          AND NOT EXISTS (
+                            SELECT 1 FROM chamados c
+                            WHERE c.linha_id = l.id
+                          )
+                        """
+                    ),
+                    {"modo": modo_norm},
+                )
+    except Exception:
+        logger.exception("Falha em salvar_linhas_grid")
+        raise
+
+    return len(records)
 
 
 def listar_equipes_e_setores() -> dict:
