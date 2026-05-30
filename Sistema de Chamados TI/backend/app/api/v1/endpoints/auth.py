@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
@@ -20,7 +21,7 @@ from app.core.security import (
 from app.core.config import settings
 from app.core.telefones_auth import verify_password_telefones, hash_password_telefones_style
 from app.models.user import User, UserRole
-from app.schemas.auth import Token, LoginRequest, RefreshTokenRequest, SSOExchangeRequest, PortalRegisterRequest
+from app.schemas.auth import Token, LoginRequest, RefreshTokenRequest, SSOExchangeRequest, OIDCExchangeRequest, PortalRegisterRequest
 from app.api.v1.dependencies import get_current_user
 from sqlalchemy import inspect as sa_inspect
 
@@ -758,4 +759,109 @@ async def sso_exchange(
         "refresh_token": refresh_token,
         "token_type": "bearer",
     }
+
+
+def _lookup_usuario_app_from_oidc(db: Session, userinfo: dict) -> dict | None:
+    email = str(userinfo.get("email") or "").strip().lower()
+    username = str(userinfo.get("preferred_username") or userinfo.get("username") or "").strip().lower()
+    candidates = [c for c in {email, username} if c]
+    if not candidates or not _has_table(db, "usuarios_app"):
+        return None
+    for cand in candidates:
+        row = _lookup_usuarios_app_login_row(db, cand)
+        if row:
+            return dict(row)
+    return None
+
+
+@router.get("/oidc/status")
+async def oidc_status():
+    from app.services.oidc import public_config
+
+    return public_config()
+
+
+@router.get("/oidc/login")
+async def oidc_login():
+    from app.services.oidc import build_login_redirect, oidc_enabled
+
+    if not oidc_enabled():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="OIDC desabilitado")
+    url, _state = build_login_redirect()
+    return RedirectResponse(url=url, status_code=302)
+
+
+@router.get("/oidc/callback")
+async def oidc_callback(
+    code: str = "",
+    state: str = "",
+    db: Session = Depends(get_db),
+):
+    from app.services.oidc import (
+        exchange_authorization_code,
+        fetch_userinfo,
+        oidc_enabled,
+        store_jwt_exchange,
+        verify_state,
+    )
+
+    if not oidc_enabled():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="OIDC desabilitado")
+    if not code or not state or not verify_state(state):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="State OIDC invalido")
+
+    try:
+        token_payload = exchange_authorization_code(code)
+        userinfo = fetch_userinfo(str(token_payload.get("access_token") or ""))
+    except Exception as exc:
+        logger.warning("OIDC callback falhou: %s", exc)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Falha OIDC") from exc
+
+    user_row = _lookup_usuario_app_from_oidc(db, userinfo)
+    if not user_row:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Usuario OIDC nao encontrado em usuarios_app. Cadastre ou sincronize antes.",
+        )
+    if not bool(user_row.get("ativo", True)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuario inativo")
+
+    user = upsert_chamados_user_from_usuario_app(db, user_row)
+    db.commit()
+    db.refresh(user)
+
+    access_token = create_access_token(
+        data={"sub": str(user.id), "email": user.email, "role": user.role.value}
+    )
+    refresh_token = create_refresh_token(data={"sub": str(user.id), "email": user.email})
+    exchange_code = store_jwt_exchange(access_token, refresh_token)
+    db.commit()
+
+    front = settings.FRONTEND_URL.rstrip("/")
+    return RedirectResponse(url=f"{front}/login?oidc_code={exchange_code}", status_code=302)
+
+
+@router.post("/oidc/exchange", response_model=Token)
+async def oidc_exchange(payload: OIDCExchangeRequest):
+    from app.services.oidc import oidc_enabled, pop_jwt_exchange
+
+    if not oidc_enabled():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="OIDC desabilitado")
+    tokens = pop_jwt_exchange(str(payload.oidc_code or "").strip())
+    if not tokens:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="oidc_code invalido ou expirado")
+    return {
+        "access_token": tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
+        "token_type": "bearer",
+    }
+
+
+@router.get("/oidc/logout-url")
+async def oidc_logout_url():
+    from app.services.oidc import logout_url, oidc_enabled
+
+    if not oidc_enabled():
+        return {"enabled": False, "url": ""}
+    return {"enabled": True, "url": logout_url()}
 

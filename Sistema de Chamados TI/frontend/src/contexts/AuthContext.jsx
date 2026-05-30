@@ -25,8 +25,53 @@ export const AuthProvider = ({ children }) => {
       // Login automático via SSO quando a URL vier com `?sso_code=...`
       const urlParams = new URLSearchParams(window.location.search)
       const ssoCode = (urlParams.get('sso_code') || '').trim()
+      const oidcCode = (urlParams.get('oidc_code') || '').trim()
 
-      if (ssoCode) {
+      if (oidcCode) {
+        if (ssoExchangeInFlightRef.current) {
+          return
+        }
+        const storageKey = `oidc_exchange_done:${oidcCode}`
+        if (typeof window !== 'undefined' && window.sessionStorage.getItem(storageKey)) {
+          setLoading(false)
+          return
+        }
+        ssoExchangeInFlightRef.current = true
+        setLoading(true)
+        try {
+          if (typeof window !== 'undefined') window.sessionStorage.setItem(storageKey, '1')
+        } catch {
+          // ignore
+        }
+        ;(async () => {
+          try {
+            const response = await authAPI.oidcExchange(oidcCode)
+            localStorage.setItem('token', response.access_token)
+            localStorage.setItem('refreshToken', response.refresh_token)
+            setToken(response.access_token)
+            try {
+              window.history.replaceState({}, document.title, window.location.pathname)
+            } catch {
+              // ignore
+            }
+          } catch (error) {
+            localStorage.removeItem('token')
+            localStorage.removeItem('refreshToken')
+            setToken(null)
+            setUser(null)
+            const detail = error?.response?.data?.detail || 'Falha no login OIDC.'
+            toast.error(detail)
+            try {
+              if (typeof window !== 'undefined') window.sessionStorage.removeItem(storageKey)
+            } catch {
+              // ignore
+            }
+          } finally {
+            ssoExchangeInFlightRef.current = false
+            setLoading(false)
+          }
+        })()
+      } else if (ssoCode) {
         if (ssoExchangeInFlightRef.current) {
           return
         }
@@ -114,11 +159,21 @@ export const AuthProvider = ({ children }) => {
     return userData
   }
 
-  const logout = () => {
+  const logout = async () => {
+    let oidcUrl = ''
+    try {
+      const cfg = await authAPI.oidcLogoutUrl()
+      if (cfg?.enabled && cfg?.url) oidcUrl = cfg.url
+    } catch {
+      // ignore
+    }
     localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')
     setToken(null)
     setUser(null)
+    if (oidcUrl) {
+      window.location.href = oidcUrl
+    }
   }
 
   const value = {

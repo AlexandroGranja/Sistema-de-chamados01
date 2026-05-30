@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Alert } from '@mui/material'
 import { useAuth } from '../contexts/AuthContext'
+import { authAPI } from '../services/api'
 import toast from 'react-hot-toast'
 import CompanyLogo from '../components/CompanyLogo'
 
@@ -343,6 +344,7 @@ const Login = ({ portal = false }) => {
   const [error, setError]           = useState('')
   const [loading, setLoading]       = useState(false)
   const [visible, setVisible]       = useState(false)
+  const [oidcEnabled, setOidcEnabled] = useState(false)
   const { login }                   = useAuth()
   const navigate                    = useNavigate()
 
@@ -350,6 +352,13 @@ const Login = ({ portal = false }) => {
     const t = setTimeout(() => setVisible(true), 60)
     return () => clearTimeout(t)
   }, [])
+
+  useEffect(() => {
+    if (portal) return
+    authAPI.oidcStatus()
+      .then((cfg) => setOidcEnabled(Boolean(cfg?.enabled)))
+      .catch(() => setOidcEnabled(false))
+  }, [portal])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -474,6 +483,20 @@ const Login = ({ portal = false }) => {
                 {loading ? 'Entrando...' : 'Entrar'}
               </button>
             </form>
+
+            {!portal && oidcEnabled && (
+              <button
+                type="button"
+                className="login-btn"
+                style={{ marginTop: 12, background: '#1e3a5f' }}
+                disabled={loading}
+                onClick={() => {
+                  window.location.href = '/api/auth/oidc/login'
+                }}
+              >
+                Entrar com SSO corporativo
+              </button>
+            )}
 
             <div className="login-footer">
               Prosper Distribuidora &mdash; TI Interno

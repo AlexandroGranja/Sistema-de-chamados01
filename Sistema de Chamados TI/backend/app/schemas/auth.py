@@ -31,6 +31,10 @@ class RefreshTokenRequest(BaseModel):
 class SSOExchangeRequest(BaseModel):
     sso_code: str
 
+
+class OIDCExchangeRequest(BaseModel):
+    oidc_code: str
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 

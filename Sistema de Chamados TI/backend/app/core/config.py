@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     TELEFONES_SYNC_ENABLED: bool = False
     TELEFONES_DB_PATH: str = ""
 
+    # OIDC / Keycloak (Fase C4 — opcional; SSO por codigo continua como fallback)
+    OIDC_ENABLED: bool = False
+    OIDC_ISSUER: str = ""
+    OIDC_CLIENT_ID: str = ""
+    OIDC_CLIENT_SECRET: str = ""
+    OIDC_REDIRECT_URI: str = "http://localhost:8000/api/auth/oidc/callback"
+    OIDC_SCOPES: str = "openid profile email"
+
     @property
     def allowed_origins_list(self) -> List[str]:
         return [x.strip() for x in self.ALLOWED_ORIGINS.split(",") if x.strip()]

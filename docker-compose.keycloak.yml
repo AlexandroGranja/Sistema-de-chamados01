@@ -1,0 +1,18 @@
+# Keycloak PoC — Fase C4 (opcional)
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.5
+    container_name: prosper_keycloak
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s

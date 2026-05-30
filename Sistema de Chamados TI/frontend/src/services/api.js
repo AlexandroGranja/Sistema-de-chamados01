@@ -32,6 +32,7 @@ function _isAuthFailureOnLoginEndpoint(error) {
   return (
     url.includes('/auth/login') ||
     url.includes('/auth/sso-exchange') ||
+    url.includes('/auth/oidc/exchange') ||
     url.includes('/auth/register-portal')
   )
 }
@@ -58,6 +59,13 @@ export const authAPI = {
   
   ssoExchange: (sso_code) =>
     api.post('/auth/sso-exchange', { sso_code }).then((res) => res.data),
+
+  oidcStatus: () => api.get('/auth/oidc/status').then((res) => res.data),
+
+  oidcExchange: (oidc_code) =>
+    api.post('/auth/oidc/exchange', { oidc_code }).then((res) => res.data),
+
+  oidcLogoutUrl: () => api.get('/auth/oidc/logout-url').then((res) => res.data),
 
   refresh: (refreshToken) =>
     api.post('/auth/refresh', { refresh_token: refreshToken }).then((res) => res.data),
