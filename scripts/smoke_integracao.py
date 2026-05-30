@@ -19,7 +19,7 @@ if ROOT not in sys.path:
 
 DEFAULT_API = os.environ.get("CHAMADOS_API_URL", "http://127.0.0.1:8000").rstrip("/")
 DEFAULT_STREAMLIT = os.environ.get("STREAMLIT_APP_URL", "http://127.0.0.1:8501").rstrip("/")
-DEFAULT_WEB = os.environ.get("CHAMADOS_WEB_URL", "http://127.0.0.1:3000").rstrip("/")
+DEFAULT_WEB = os.environ.get("CHAMADOS_WEB_URL", "http://localhost:3000").rstrip("/")
 
 
 def _check_http(name: str, url: str, timeout: float = 8.0) -> tuple[bool, str]:
