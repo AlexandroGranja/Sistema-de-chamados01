@@ -1115,6 +1115,90 @@ def buscar_linha_por_codigo_ou_nome(
     return None
 
 
+# Mapeamento legado Streamlit (display) ↔ colunas Postgres — espelha src/db/repository.py
+LINHAS_GRID_LEGACY_MAP = {
+    "↕ Ordem": "ordem_manual",
+    "Codigo": "codigo",
+    "Nome": "nome",
+    "Equipe": "equipe",
+    "EquipePadrao": "equipe_padrao",
+    "GrupoEquipe": "grupo_equipe",
+    "TipoEquipe": "tipo_equipe",
+    "Localidade": "localidade",
+    "Data da Troca": "data_troca",
+    "Data Retorno": "data_retorno",
+    "Data Ocorrência": "data_ocorrencia",
+    "Data Solicitação TBS": "data_solicitacao_tbs",
+    "Gestor": "gestor",
+    "Supervisor": "supervisor",
+    "Segmento": "segmento",
+    "Papel": "papel",
+    "Linha": "linha",
+    "E-mail": "email",
+    "Gerenciamento": "gerenciamento",
+    "IMEI A": "imei_a",
+    "IMEI B": "imei_b",
+    "CHIP": "chip",
+    "Marca": "marca",
+    "Aparelho": "aparelho",
+    "Modelo": "modelo",
+    "Setor": "setor",
+    "Cargo": "cargo",
+    "Desconto": "desconto",
+    "Perfil": "perfil",
+    "Empresa": "empresa",
+    "Ativo": "ativo",
+    "Numero de Serie": "numero_serie",
+    "Patrimonio": "patrimonio",
+    "Operadora": "operadora",
+    "Nome de Guerra": "nome_guerra",
+    "Motivo": "motivo",
+    "Observação": "observacao",
+    "Aba": "aba",
+}
+
+
+def listar_linhas_grid(*, modo: str = "ativas") -> list[dict]:
+    """
+    Lista linhas para o grid Streamlit com chaves legadas (Codigo, Nome, Linha…).
+    """
+    modo_norm = (modo or "ativas").strip().lower()
+    if modo_norm not in {"ativas", "desativadas"}:
+        modo_norm = "ativas"
+
+    db_cols = sorted(set(LINHAS_GRID_LEGACY_MAP.values()))
+    select_sql = ", ".join(db_cols)
+
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(
+                text(
+                    f"""
+                    SELECT {select_sql}
+                    FROM linhas
+                    WHERE COALESCE(modo, modo_operacao) = :modo
+                    ORDER BY ordem_manual NULLS LAST, id
+                    """
+                ),
+                {"modo": modo_norm},
+            )
+            raw_rows = result.mappings().all()
+    except Exception:
+        logger.exception("Falha em listar_linhas_grid")
+        return []
+
+    rev = {v: k for k, v in LINHAS_GRID_LEGACY_MAP.items()}
+    rows: list[dict] = []
+    for raw in raw_rows:
+        item: dict = {}
+        for db_col, legacy_key in rev.items():
+            if db_col in raw:
+                val = raw[db_col]
+                item[legacy_key] = "" if val is None else val
+        rows.append(item)
+    return rows
+
+
 def listar_equipes_e_setores() -> dict:
     """
     Retorna listas distintas de equipes, setores, gestores e empresas

@@ -47,3 +47,14 @@ def get_chamados_app_url() -> str:
 def get_streamlit_app_url() -> str:
     """URL base do Gerenciamento de Telefones (Streamlit)."""
     return os.environ.get("STREAMLIT_APP_URL", "http://localhost:8501").strip()
+
+
+def get_chamados_api_url() -> str:
+    """URL base da API FastAPI dos Chamados (integração C1)."""
+    return os.environ.get("CHAMADOS_API_URL", "http://127.0.0.1:8000").strip().rstrip("/")
+
+
+def use_telefones_api() -> bool:
+    """Quando True, Streamlit lê linhas via HTTP (/api/telefones) em vez de SQL direto."""
+    raw = os.environ.get("USE_TELEFONES_API", "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}

@@ -19,12 +19,14 @@ from app.schemas.telefones import (
     TransferenciaRequest,
     TelefonesActionResponse,
     StreamlitLinkResponse,
+    ListarLinhasResponse,
 )
 from app.services.streamlit_links import build_streamlit_linha_url
 from app.services.telefones import (
     buscar_linha_por_codigo_ou_nome,
     buscar_linha_por_numero,
     listar_equipes_e_setores,
+    listar_linhas_grid,
     criar_nova_linha,
     atribuir_linha,
     atualizar_aparelho,
@@ -91,6 +93,22 @@ async def opcoes_equipes_setores(
 ):
     """Retorna listas distintas de equipes, setores, gestores e empresas para autocomplete."""
     return listar_equipes_e_setores()
+
+
+@router.get("/linhas", response_model=ListarLinhasResponse)
+async def listar_linhas(
+    modo: str = "ativas",
+    current_user: User = Depends(get_current_technician_or_admin),
+):
+    """Lista linhas para grid do Gerenciamento (chaves legadas Codigo/Nome/Linha…)."""
+    modo_norm = (modo or "ativas").strip().lower()
+    if modo_norm not in {"ativas", "desativadas"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="modo deve ser 'ativas' ou 'desativadas'.",
+        )
+    rows = listar_linhas_grid(modo=modo_norm)
+    return ListarLinhasResponse(modo=modo_norm, total=len(rows), rows=rows)
 
 
 @router.get("/link-gerenciamento", response_model=StreamlitLinkResponse)

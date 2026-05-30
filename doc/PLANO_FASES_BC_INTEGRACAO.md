@@ -152,11 +152,22 @@ B1 e B3 são bloqueantes para confiança operacional; B2 melhora UX.
 
 ### C1 — Camada de serviço única para `linhas`
 
+**Status:** passo A em andamento (leitura via API + feature flag).
+
 **Entregas:**
 
 1. Mover regras de negócio de `repository.py` e `telefones.py` para módulo compartilhado ou expandir FastAPI como **API interna** do monorepo.
 2. Streamlit passa a chamar API (HTTP local) em vez de SQL direto — feature flag `USE_TELEFONES_API=true`.
 3. Regras centralizadas: linha vaga, conflito de edição, validações de segmento/equipe.
+
+**Já implementado (C1-A):**
+
+- `GET /api/telefones/linhas?modo=ativas|desativadas` — grid legado (Codigo, Nome, Linha…)
+- `src/services/telefones_api_client.py` + flag `USE_TELEFONES_API` / `CHAMADOS_API_URL`
+- `load_linhas()` usa API quando flag + JWT após login; fallback SQL
+- Teste: `python -m scripts.test_c1_linhas_api <senha>`
+
+**Próximo (C1-B):** migrar gravação (`save_linhas` / manutenção) para API.
 
 **Risco:** regressão em edição em massa. Mitigação: flag + testes manuais por segmento.
 

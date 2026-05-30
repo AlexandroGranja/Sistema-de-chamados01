@@ -1095,6 +1095,25 @@ def _sync_usuarios_chamados(*, dry_run: bool = False) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def _bind_chamados_api_token(username: str, password: str = "") -> None:
+    """Obtém JWT da API Chamados após login Streamlit (Fase C1)."""
+    try:
+        from src.core.config import use_telefones_api
+        from src.services.telefones_api_client import is_enabled, login_chamados_api, set_api_token
+
+        if not (is_enabled() and use_telefones_api()):
+            return
+        pwd = (password or "").strip()
+        if not pwd:
+            return
+        token = login_chamados_api(username, pwd)
+        set_api_token(token)
+        if token:
+            st.session_state["chamados_api_token"] = token
+    except Exception:
+        pass
+
+
 def _render_login_or_first_user() -> bool:
     """
     Renderiza login ou formulário do primeiro usuário.
@@ -1126,6 +1145,7 @@ def _render_login_or_first_user() -> bool:
                     if criar_usuario(u.strip(), p, is_admin=True):
                         if is_postgres_configured():
                             _sync_usuarios_chamados()
+                        _bind_chamados_api_token(u.strip(), p)
                         user = {"username": u.strip().lower(), "is_admin": True}
                         st.session_state.authenticated = True
                         st.session_state.user = user
@@ -1151,6 +1171,7 @@ def _render_login_or_first_user() -> bool:
             if user:
                 st.session_state.authenticated = True
                 st.session_state.user = user
+                _bind_chamados_api_token(u, p)
                 _salvar_sessao_cookie(user)
                 st.rerun()
             else:
@@ -1728,6 +1749,20 @@ def main() -> None:
                 st.success("PostgreSQL: conexão ok.")
             else:
                 st.warning("PostgreSQL: não configurado.")
+            try:
+                from src.core.config import use_telefones_api
+                from src.services.telefones_api_client import get_api_token, is_enabled
+
+                if use_telefones_api() and is_enabled():
+                    if get_api_token():
+                        st.info("Modo C1: leitura de linhas via API Chamados (token ativo). Gravação ainda local.")
+                    else:
+                        st.warning(
+                            "USE_TELEFONES_API=true, mas sem token JWT — grid usa SQL direto "
+                            "(faça login com senha ou desative a flag)."
+                        )
+            except Exception:
+                pass
         if st.session_state.get("user", {}).get("is_admin"):
             st.divider()
             with st.expander("Histórico de alterações (auditoria)", expanded=False):

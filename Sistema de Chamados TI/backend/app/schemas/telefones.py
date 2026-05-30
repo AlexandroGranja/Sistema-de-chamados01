@@ -137,3 +137,9 @@ class TelefonesActionResponse(BaseModel):
 
 class StreamlitLinkResponse(BaseModel):
     url: str
+
+
+class ListarLinhasResponse(BaseModel):
+    modo: str
+    total: int
+    rows: list[dict]

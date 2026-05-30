@@ -710,6 +710,15 @@ def save_linhas(df: pd.DataFrame, modo: str = "ativas", db_path: Optional[Path] 
 
 def load_linhas(modo: str = "ativas", db_path: Optional[Path] = None) -> pd.DataFrame:
     """Carrega linhas do banco. Retorna DataFrame vazio se não houver dados."""
+    try:
+        from src.core.config import use_telefones_api
+        from src.services.telefones_api_client import get_api_token, is_enabled, load_linhas_via_api
+
+        if is_enabled() and use_telefones_api() and get_api_token():
+            return load_linhas_via_api(modo)
+    except Exception:
+        pass
+
     conn = get_connection(db_path)
     try:
         if _is_postgres():

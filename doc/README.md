@@ -108,6 +108,7 @@ flowchart TD
 | E2E auditoria API (B3) | `python -m scripts.test_auditoria_b3_e2e <senha>` |
 | E2E navegação (B2) | `python -m scripts.test_navegacao_b2_e2e <senha>` |
 | Sync usuários (B5) | `python -m scripts.sync_usuarios_chamados` |
+| Linhas via API (C1) | `USE_TELEFONES_API=true` + `python -m scripts.test_c1_linhas_api <senha>` |
 
 ---
 
