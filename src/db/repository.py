@@ -1039,6 +1039,8 @@ def preparar_referencia_chamado(
 ) -> dict[str, Any]:
     """
     Resolve referência de chamado e cria stub legado apenas quando necessário.
+
+    Fase C2: com PostgreSQL + tabela `tickets`, não cria mais stub em `chamados`.
     """
     ref = resolver_referencia_chamado(raw_id, db_path=db_path)
     if ref.get("valido"):
@@ -1047,6 +1049,19 @@ def preparar_referencia_chamado(
     raw_id = str(raw_id or "").strip()
     if not raw_id.isdigit():
         return ref
+
+    if _is_postgres():
+        conn = get_connection(db_path)
+        try:
+            with conn.cursor() as cur:
+                if _tickets_table_exists(cur):
+                    ref["aviso"] = (
+                        f"Ticket `{raw_id}` não encontrado no Sistema de Chamados. "
+                        "Abra ou crie o chamado no app React (📌 Chamados)."
+                    )
+                    return ref
+        finally:
+            conn.close()
 
     stub_id = garantir_chamado_stub(raw_id, tipo=tipo_stub, db_path=db_path)
     if stub_id is None:
@@ -1064,6 +1079,127 @@ def preparar_referencia_chamado(
         }
     )
     return ref
+
+
+def resumir_chamados_legado(db_path: Optional[Path] = None) -> dict[str, Any]:
+    """
+    Resumo operacional Fase C2: convivência `chamados` (legado) vs `tickets` (React).
+
+    Usado por scripts/verificar_chamados_legado.py e painel admin.
+    """
+    base: dict[str, Any] = {
+        "postgres": _is_postgres(),
+        "tickets_existe": False,
+        "total_chamados": 0,
+        "total_tickets": 0,
+        "chamados_sem_ticket_mesmo_id": 0,
+        "auditoria_com_chamado_id": 0,
+        "auditoria_so_legado": 0,
+        "auditoria_tickets": 0,
+        "auditoria_orfa": 0,
+        "movimentacoes_com_chamado_id": 0,
+        "movimentacoes_so_legado": 0,
+        "chamado_eventos": 0,
+    }
+    if not _is_postgres():
+        return base
+
+    conn = get_connection(db_path)
+    try:
+        with conn.cursor() as cur:
+            has_tickets = _tickets_table_exists(cur)
+            base["tickets_existe"] = has_tickets
+
+            cur.execute("SELECT COUNT(*) FROM chamados")
+            base["total_chamados"] = int(cur.fetchone()[0] or 0)
+
+            if has_tickets:
+                cur.execute("SELECT COUNT(*) FROM tickets")
+                base["total_tickets"] = int(cur.fetchone()[0] or 0)
+                cur.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM chamados c
+                    WHERE NOT EXISTS (SELECT 1 FROM tickets t WHERE t.id = c.id)
+                    """
+                )
+                base["chamados_sem_ticket_mesmo_id"] = int(cur.fetchone()[0] or 0)
+
+            cur.execute(
+                "SELECT COUNT(*) FROM auditoria WHERE chamado_id IS NOT NULL"
+            )
+            base["auditoria_com_chamado_id"] = int(cur.fetchone()[0] or 0)
+
+            if has_tickets:
+                cur.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM auditoria a
+                    WHERE a.chamado_id IS NOT NULL
+                      AND EXISTS (SELECT 1 FROM tickets t WHERE t.id = a.chamado_id)
+                    """
+                )
+                base["auditoria_tickets"] = int(cur.fetchone()[0] or 0)
+                cur.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM auditoria a
+                    WHERE a.chamado_id IS NOT NULL
+                      AND EXISTS (SELECT 1 FROM chamados c WHERE c.id = a.chamado_id)
+                      AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.id = a.chamado_id)
+                    """
+                )
+                base["auditoria_so_legado"] = int(cur.fetchone()[0] or 0)
+                cur.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM auditoria a
+                    WHERE a.chamado_id IS NOT NULL
+                      AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.id = a.chamado_id)
+                      AND NOT EXISTS (SELECT 1 FROM chamados c WHERE c.id = a.chamado_id)
+                    """
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM auditoria a
+                    WHERE a.chamado_id IS NOT NULL
+                      AND EXISTS (SELECT 1 FROM chamados c WHERE c.id = a.chamado_id)
+                    """
+                )
+                base["auditoria_so_legado"] = int(cur.fetchone()[0] or 0)
+                cur.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM auditoria a
+                    WHERE a.chamado_id IS NOT NULL
+                      AND NOT EXISTS (SELECT 1 FROM chamados c WHERE c.id = a.chamado_id)
+                    """
+                )
+            base["auditoria_orfa"] = int(cur.fetchone()[0] or 0)
+
+            cur.execute(
+                "SELECT COUNT(*) FROM movimentacoes_linha WHERE chamado_id IS NOT NULL"
+            )
+            base["movimentacoes_com_chamado_id"] = int(cur.fetchone()[0] or 0)
+            if has_tickets:
+                cur.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM movimentacoes_linha m
+                    WHERE m.chamado_id IS NOT NULL
+                      AND EXISTS (SELECT 1 FROM chamados c WHERE c.id = m.chamado_id)
+                      AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t.id = m.chamado_id)
+                    """
+                )
+                base["movimentacoes_so_legado"] = int(cur.fetchone()[0] or 0)
+
+            cur.execute("SELECT COUNT(*) FROM chamado_eventos")
+            base["chamado_eventos"] = int(cur.fetchone()[0] or 0)
+        return base
+    finally:
+        conn.close()
 
 
 def garantir_chamado_stub(

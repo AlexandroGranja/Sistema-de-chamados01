@@ -41,9 +41,15 @@ TELEFONES_DB_PATH=
 3. Suba o backend: `create_all` / `alembic upgrade head` criam `users`, `tickets`, etc.
 4. (Opcional) Importar dados antigos de `chamados.db` com ferramenta de ETL ou script dedicado — não há migração automática única no repositório.
 
-## Observação
+## Observação (Fase C2)
 
-No mesmo banco existe também a tabela legada **`chamados`** (modelo do Streamlit). O sistema React usa a tabela **`tickets`**. São conviventes; não confundir nomes.
+No mesmo banco existia a tabela legada **`chamados`** (modelo antigo do Streamlit). O sistema operacional usa **`tickets`** (React).
+
+- **`auditoria.chamado_id`** = **`tickets.id`** em fluxos integrados.
+- A tabela `chamados` permanece somente leitura; não abra chamados novos pelo Streamlit.
+- Verificação: `python -m scripts.verificar_chamados_legado`
+- Migração opcional: `python -m scripts.migrar_chamados_para_tickets --dry-run`
+- Documentação completa: [doc/CHAMADOS_TICKETS_UNIFICACAO.md](../../doc/CHAMADOS_TICKETS_UNIFICACAO.md)
 
 ## Limpar `users` e manter só o Gerenciamento
 

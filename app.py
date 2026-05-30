@@ -2032,204 +2032,34 @@ def main() -> None:
                         st.dataframe(df_view[["Quem editou", "Chamado", "O que editou", "Quando editou"]], width="stretch", hide_index=True)
 
     def _render_chamados_content() -> None:
+        """Fase C2: UI legada descontinuada — use o Sistema de Chamados (React)."""
         st.markdown("### 📌 Sistema de Chamados")
-        if not HAS_DB or not criar_chamado or not listar_chamados:
-            st.error("Módulo de chamados indisponível no momento.")
-            return
-
-        st.caption("Abra, acompanhe e atualize chamados no mesmo sistema e no mesmo banco.")
-        known_linhas = []
-        try:
-            df_linhas_ref = load_linhas(modo=modo_db)
-            if "Linha" in df_linhas_ref.columns:
-                known_linhas = sorted(
-                    {
-                        str(v).strip()
-                        for v in df_linhas_ref["Linha"].fillna("").astype(str).tolist()
-                        if str(v).strip()
-                    }
-                )
-        except Exception:
-            known_linhas = []
-
-        with st.expander("Abrir chamado", expanded=True):
-            c_new_1, c_new_2 = st.columns([1.2, 1.2])
-            with c_new_1:
-                ch_titulo = st.text_input("Título", key="ch_novo_titulo", placeholder="Ex.: Troca de aparelho")
-                ch_tipo = st.selectbox(
-                    "Tipo",
-                    options=["gerenciamento", "incidente", "solicitacao", "manutencao", "roubo_perda"],
-                    key="ch_novo_tipo",
-                )
-                ch_prioridade = st.selectbox(
-                    "Prioridade",
-                    options=["baixa", "normal", "alta", "critica"],
-                    index=1,
-                    key="ch_novo_prioridade",
-                )
-            with c_new_2:
-                ch_status = st.selectbox(
-                    "Status inicial",
-                    options=["aberto", "em_andamento", "aguardando", "resolvido", "fechado"],
-                    key="ch_novo_status",
-                )
-                ch_linha = st.selectbox(
-                    "Linha (opcional)",
-                    options=[""] + known_linhas,
-                    key="ch_novo_linha",
-                )
-                ch_origem = st.selectbox(
-                    "Origem",
-                    options=["app", "gerenciamento", "manual", "externo"],
-                    index=0,
-                    key="ch_novo_origem",
-                )
-            ch_desc = st.text_area(
-                "Descrição",
-                key="ch_novo_descricao",
-                placeholder="Descreva o chamado com detalhes do que precisa ser feito.",
-                height=110,
-            )
-            if st.button("Abrir chamado", key="btn_abrir_chamado"):
-                titulo = str(ch_titulo or "").strip()
-                descricao = str(ch_desc or "").strip()
-                if not titulo or not descricao:
-                    st.error("Título e descrição são obrigatórios.")
-                else:
-                    user = st.session_state.get("user", {}) or {}
-                    novo = criar_chamado(
-                        titulo=titulo,
-                        descricao=descricao,
-                        tipo=str(ch_tipo or "").strip(),
-                        prioridade=str(ch_prioridade or "").strip(),
-                        status=str(ch_status or "").strip(),
-                        linha_num=str(ch_linha or "").strip(),
-                        solicitante_id=str(user.get("id", "")),
-                        origem=str(ch_origem or "").strip(),
-                    )
-                    if not novo:
-                        st.error("Não foi possível abrir o chamado.")
-                    else:
-                        chamado_id_new = str(novo.get("id") or "")
-                        if chamado_id_new and registrar_chamado_evento:
-                            try:
-                                registrar_chamado_evento(
-                                    chamado_id=chamado_id_new,
-                                    tipo_evento="chamado_aberto",
-                                    descricao=f"Abertura do chamado {novo.get('numero_chamado')}",
-                                    depois={
-                                        "status": novo.get("status"),
-                                        "prioridade": novo.get("prioridade"),
-                                        "linha": novo.get("linha_numero"),
-                                        "tipo": novo.get("tipo"),
-                                    },
-                                    user_id=str(user.get("id", "")),
-                                )
-                            except Exception:
-                                pass
-                        _audit(
-                            acao="abrir_chamado",
-                            entidade="chamados",
-                            chave=str(novo.get("numero_chamado") or novo.get("id") or ""),
-                            chamado_id=chamado_id_new,
-                            depois=novo,
-                            detalhes="Chamado aberto pela página unificada.",
-                        )
-                        st.success(f"Chamado {novo.get('numero_chamado')} aberto com sucesso.")
-                        st.session_state["chamado_detalhe_id"] = int(novo.get("id") or 0)
-                        st.rerun()
-
-        st.divider()
-        c_f1, c_f2, c_f3 = st.columns([1.2, 2.0, 0.8])
-        with c_f1:
-            status_filter = st.selectbox(
-                "Filtrar status",
-                options=["", "aberto", "em_andamento", "aguardando", "resolvido", "fechado"],
-                format_func=lambda x: "Todos" if x == "" else x,
-                key="ch_filtro_status",
-            )
-        with c_f2:
-            busca_filter = st.text_input(
-                "Buscar chamado",
-                key="ch_filtro_busca",
-                placeholder="Número, título, descrição ou linha",
-            ).strip()
-        with c_f3:
-            limit_filter = st.number_input("Limite", min_value=20, max_value=500, value=120, step=20, key="ch_filtro_limite")
-
-        chamados_rows = listar_chamados(limit=int(limit_filter), status=status_filter, busca=busca_filter)
-        if not chamados_rows:
-            st.info("Nenhum chamado encontrado com os filtros atuais.")
-            return
-
-        df_ch = pd.DataFrame(chamados_rows)
-        df_ch["aberto_em_fmt"] = pd.to_datetime(df_ch["aberto_em"], errors="coerce").dt.strftime("%d/%m/%Y %H:%M:%S")
-        df_ch["atualizado_em_fmt"] = pd.to_datetime(df_ch["atualizado_em"], errors="coerce").dt.strftime("%d/%m/%Y %H:%M:%S")
-        st.dataframe(
-            df_ch[["id", "numero_chamado", "status", "prioridade", "tipo", "linha_numero", "titulo", "aberto_em_fmt", "atualizado_em_fmt"]],
-            width="stretch",
-            hide_index=True,
+        st.warning(
+            "Esta página interna do Streamlit foi **descontinuada** (Fase C2). "
+            "Abra, acompanhe e feche chamados no **Sistema de Chamados** (React)."
         )
+        chamados_url = get_chamados_app_url().rstrip("/") or "http://localhost:3000"
+        st.link_button("Abrir Chamados (React)", url=f"{chamados_url}/tickets", use_container_width=False)
+        st.caption("Use o botão **📌 Chamados** na barra superior para login automático (SSO).")
+        if HAS_DB and is_postgres_configured():
+            try:
+                from src.db.repository import resumir_chamados_legado
 
-        detail_options = [f"{int(r.get('id'))} • #{str(r.get('numero_chamado') or '')} • {str(r.get('titulo') or '')}" for r in chamados_rows if r.get("id")]
-        selected_opt = st.selectbox("Detalhar chamado", options=detail_options, key="ch_detail_select")
-        selected_id = int(str(selected_opt).split("•")[0].strip()) if selected_opt else 0
-        if selected_id and obter_chamado:
-            detalhe = obter_chamado(str(selected_id))
-            if detalhe:
-                st.markdown("#### Detalhe do chamado")
-                d1, d2, d3 = st.columns([1, 1, 2])
-                with d1:
-                    st.caption(f"ID: {detalhe.get('id')}")
-                    st.caption(f"Número: {detalhe.get('numero_chamado')}")
-                with d2:
-                    st.caption(f"Status atual: {detalhe.get('status')}")
-                    st.caption(f"Prioridade: {detalhe.get('prioridade')}")
-                with d3:
-                    st.caption(f"Linha: {detalhe.get('linha_numero') or '—'}")
-                    st.caption(f"Tipo: {detalhe.get('tipo')}")
-                st.text_area("Descrição atual", value=str(detalhe.get("descricao") or ""), height=100, disabled=True, key=f"desc_current_{selected_id}")
+                resumo = resumir_chamados_legado()
+                st.markdown("#### Resumo do banco")
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Tickets (React)", resumo.get("total_tickets", 0))
+                c2.metric("Chamados legado", resumo.get("total_chamados", 0))
+                c3.metric("Auditoria só legado", resumo.get("auditoria_so_legado", 0))
+                if int(resumo.get("auditoria_orfa") or 0) > 0:
+                    st.error(
+                        f"{resumo.get('auditoria_orfa')} registro(s) de auditoria com chamado_id órfão. "
+                        "Execute: python -m scripts.verificar_chamados_legado"
+                    )
+            except Exception as exc:
+                st.caption(f"Não foi possível carregar resumo: {exc}")
+        st.caption("Documentação: doc/CHAMADOS_TICKETS_UNIFICACAO.md")
 
-                new_status = st.selectbox(
-                    "Novo status",
-                    options=["aberto", "em_andamento", "aguardando", "resolvido", "fechado"],
-                    index=["aberto", "em_andamento", "aguardando", "resolvido", "fechado"].index(str(detalhe.get("status") or "aberto")) if str(detalhe.get("status") or "aberto") in ["aberto", "em_andamento", "aguardando", "resolvido", "fechado"] else 0,
-                    key=f"status_new_{selected_id}",
-                )
-                if st.button("Atualizar status do chamado", key=f"btn_update_status_{selected_id}"):
-                    status_old = str(detalhe.get("status") or "").strip()
-                    status_new = str(new_status or "").strip()
-                    if status_new == status_old:
-                        st.info("O chamado já está com esse status.")
-                    else:
-                        ok_status = atualizar_status_chamado(str(selected_id), status_new) if atualizar_status_chamado else False
-                        if not ok_status:
-                            st.error("Não foi possível atualizar o status.")
-                        else:
-                            user = st.session_state.get("user", {}) or {}
-                            if registrar_chamado_evento:
-                                try:
-                                    registrar_chamado_evento(
-                                        chamado_id=str(selected_id),
-                                        tipo_evento="status_alterado",
-                                        descricao=f"Status alterado de {status_old} para {status_new}",
-                                        antes={"status": status_old},
-                                        depois={"status": status_new},
-                                        user_id=str(user.get("id", "")),
-                                    )
-                                except Exception:
-                                    pass
-                            _audit(
-                                acao="atualizar_status_chamado",
-                                entidade="chamados",
-                                chave=str(detalhe.get("numero_chamado") or selected_id),
-                                chamado_id=str(selected_id),
-                                antes={"status": status_old},
-                                depois={"status": status_new},
-                                detalhes="Atualização de status pela página de chamados.",
-                            )
-                            st.success("Status atualizado com sucesso.")
-                            st.rerun()
     with col_cfg:
         if current_page == "config":
             if st.button("⬅ Painel", key="btn_go_panel"):

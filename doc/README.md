@@ -44,6 +44,7 @@ GerenciamentoDeTelefones/          ← monorepo (este repo)
 | [POPULAR_BANCO.md](./POPULAR_BANCO.md) | Importar linhas (planilhas, SQLite, dump) |
 | [CHECKLIST_QA_INTEGRACAO.md](./CHECKLIST_QA_INTEGRACAO.md) | Checklist QA por fluxo operacional (Fase B4) |
 | [POLITICA_SENHAS.md](./POLITICA_SENHAS.md) | Senha única, sync `usuarios_app` ↔ `users` (Fase B5) |
+| [CHAMADOS_TICKETS_UNIFICACAO.md](./CHAMADOS_TICKETS_UNIFICACAO.md) | Modelo único de chamado, legado vs tickets (Fase C2) |
 
 ---
 

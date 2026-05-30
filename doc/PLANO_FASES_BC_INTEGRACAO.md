@@ -177,11 +177,21 @@ B1 e B3 são bloqueantes para confiança operacional; B2 melhora UX.
 
 ### C2 — Modelo único de chamado
 
+**Status:** concluído (documentação + scripts + depreciação UI legada).
+
 **Entregas:**
 
 1. Deprecar tabela `chamados` / UI Streamlit `_render_chamados_content()` (substituída pelo React).
 2. Migrar registros legados `chamados` → `tickets` (script one-shot) ou manter `chamados` somente leitura.
 3. FK `auditoria.chamado_id` documentada como `tickets.id` (sem ambiguidade).
+
+**Implementado:**
+
+- `doc/CHAMADOS_TICKETS_UNIFICACAO.md` — convenção e mapeamentos
+- `scripts/verificar_chamados_legado.py` — contagens legado/órfãos
+- `scripts/migrar_chamados_para_tickets.py` — dry-run + `--yes` + `--remap-auditoria`
+- `preparar_referencia_chamado()` não cria mais stub em `chamados` quando `tickets` existe
+- UI legada Streamlit substituída por aviso + link React
 
 ---
 

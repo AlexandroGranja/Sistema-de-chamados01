@@ -261,7 +261,7 @@ CREATE TABLE IF NOT EXISTS auditoria (
     acao VARCHAR(100) NOT NULL,
     entidade VARCHAR(100) NOT NULL,
     entidade_id VARCHAR(100),
-    -- Fase B1: referencia tickets.id (React); legado chamados.id sem FK rígida
+    -- Fase B1/C2: referencia tickets.id (React); legado chamados.id sem FK rígida
     chamado_id BIGINT,
     linha_id BIGINT REFERENCES linhas(id),
     antes_json JSONB,
