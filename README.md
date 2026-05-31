@@ -131,20 +131,10 @@ Defina `E2E_LOGIN_PASS=Demo@2026!` para testes que exigem login.
 
 ---
 
-## Documentação de portfólio
-
-| Documento | Conteúdo |
-|-----------|----------|
-| [CASE_STUDY_PORTFOLIO.md](doc/CASE_STUDY_PORTFOLIO.md) | Problema → solução → stack |
-| [PORTFOLIO_LINKEDIN_CV.md](doc/PORTFOLIO_LINKEDIN_CV.md) | Textos prontos para LinkedIn/CV |
-| [SCREENSHOTS_CHECKLIST.md](doc/SCREENSHOTS_CHECKLIST.md) | 3 cenas para captura |
-| [PLANO_PORTFOLIO_SISTEMA_COMPLETO.md](doc/PLANO_PORTFOLIO_SISTEMA_COMPLETO.md) | Roadmap B→D |
-
----
 
 ## Disclaimer
 
-Sistema desenvolvido e evoluído como **projeto pessoal** com arquitetura profissional. Não representa dados, processos ou infraestrutura de empregadores anteriores. Uso educacional e demonstrativo.
+Sistema desenvolvido e evoluído com arquitetura profissional. Não representa dados, processos ou infraestrutura de empregadores anteriores. Uso educacional e demonstrativo.
 
 ---
 
